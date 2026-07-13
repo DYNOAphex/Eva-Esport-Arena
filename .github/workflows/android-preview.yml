@@ -29,7 +29,6 @@ jobs:
       contents: read
 
     env:
-      NODE_ENV: production
       CI: "1"
 
     steps:
@@ -39,8 +38,8 @@ jobs:
       - name: Verify runner Node.js
         run: node --version && npm --version
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install all dependencies
+        run: npm install --include=dev
 
       - name: Align packages with Expo SDK 54
         run: npx expo install --fix
@@ -59,6 +58,8 @@ jobs:
 
       - name: Start Android preview build
         id: eas-build
+        env:
+          NODE_ENV: production
         run: |
           eas build \
             --platform android \

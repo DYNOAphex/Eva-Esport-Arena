@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Eva Esport Arena",
+    "slug": "eva-esport-arena",
+    "scheme": "evaesportarena",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

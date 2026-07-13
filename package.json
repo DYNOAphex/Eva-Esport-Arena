@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "babel-preset-expo": "~54.0.0",
     "eas-cli": "^16.0.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "^9.0.0",

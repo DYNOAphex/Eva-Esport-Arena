@@ -12,7 +12,6 @@ import {
 } from "react-native";
 
 import { Theme } from "../../constants/theme";
-import { registerWithEmail } from "../../services/authService";
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState("");
@@ -38,6 +37,7 @@ export default function RegisterScreen() {
 
     try {
       setLoading(true);
+      const { registerWithEmail } = await import("../../services/authService");
       await registerWithEmail(email, password);
       router.replace("/(tabs)");
     } catch (error) {
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   link: {
-    color: Theme.colors.goldLight,
+    color: Theme.colors.gold,
     textAlign: "center",
     fontWeight: "700",
     marginTop: 22,

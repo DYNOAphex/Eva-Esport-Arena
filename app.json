@@ -6,7 +6,16 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
-    "plugins": ["expo-router"],
+    "plugins": ["expo-router", "expo-updates"],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "android": {
+      "package": "com.dynoaphex.evaesportarena"
+    },
+    "ios": {
+      "bundleIdentifier": "com.dynoaphex.evaesportarena"
+    },
     "experiments": {
       "typedRoutes": true
     }

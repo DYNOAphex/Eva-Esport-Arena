@@ -1,0 +1,75 @@
+name: Build Android APK v2
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: android-apk-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Create Android APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify Expo account
+        run: eas whoami
+
+      - name: Link or create EAS project
+        run: eas init --non-interactive --force
+
+      - name: Start Android preview build
+        id: eas-build
+        shell: bash
+        run: |
+          eas build \
+            --platform android \
+            --profile preview \
+            --non-interactive \
+            --no-wait \
+            --json > eas-build.json
+
+          cat eas-build.json
+
+          BUILD_URL=$(jq -r '.[0].buildDetailsPageUrl // empty' eas-build.json)
+          BUILD_ID=$(jq -r '.[0].id // empty' eas-build.json)
+
+          echo "build_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Publish build link
+        shell: bash
+        run: |
+          echo "## EVA Esport Arena — Android APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "${{ steps.eas-build.outputs.build_url }}" ]; then
+            echo "[Suivre la build et installer l’APK](${{ steps.eas-build.outputs.build_url }})" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "La build a été envoyée à Expo EAS. Consulte le tableau de bord Expo." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -n "${{ steps.eas-build.outputs.build_id }}" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Build ID : \`${{ steps.eas-build.outputs.build_id }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi

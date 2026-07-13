@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "Eva Esport Arena",
-    "slug": "eva-esport-arena-dyno",
+    "slug": "eva-esport-arena",
+    "owner": "dynoxaphexs-team",
     "scheme": "evaesportarena",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -10,11 +11,19 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "updates": {
+      "url": "https://u.expo.dev/fc6db2ba-e1c7-4ceb-b720-f97787f7425c"
+    },
     "android": {
       "package": "com.dynoaphex.evaesportarena"
     },
     "ios": {
       "bundleIdentifier": "com.dynoaphex.evaesportarena"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "fc6db2ba-e1c7-4ceb-b720-f97787f7425c"
+      }
     },
     "experiments": {
       "typedRoutes": true

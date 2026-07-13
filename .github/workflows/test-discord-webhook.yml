@@ -1,0 +1,74 @@
+name: Test Discord Match Notification
+
+on:
+  workflow_dispatch:
+    inputs:
+      opponent:
+        description: "Nom de l'équipe adverse"
+        required: true
+        default: "TITANS"
+      match_date:
+        description: "Date du match"
+        required: true
+        default: "17 juillet"
+      lobby_time:
+        description: "Heure du lobby"
+        required: true
+        default: "20h30"
+      match_time:
+        description: "Heure du match"
+        required: true
+        default: "21h00"
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Discord secret
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "Le secret DISCORD_WEBHOOK_URL est manquant."
+            exit 1
+          fi
+
+      - name: Send DYNO match notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          OPPONENT: ${{ inputs.opponent }}
+          MATCH_DATE: ${{ inputs.match_date }}
+          LOBBY_TIME: ${{ inputs.lobby_time }}
+          MATCH_TIME: ${{ inputs.match_time }}
+        run: |
+          payload=$(jq -n \
+            --arg opponent "$OPPONENT" \
+            --arg date "$MATCH_DATE" \
+            --arg lobby "$LOBBY_TIME" \
+            --arg match "$MATCH_TIME" \
+            '{
+              username: "DYNO Esport Manager",
+              embeds: [
+                {
+                  title: "⚔️ NOUVEAU SCRIM DYNO",
+                  description: ("**DYNO vs " + $opponent + "**"),
+                  color: 13938487,
+                  fields: [
+                    { name: "📅 Date", value: $date, inline: true },
+                    { name: "🎮 Lobby", value: $lobby, inline: true },
+                    { name: "🏁 Match", value: $match, inline: true }
+                  ],
+                  footer: { text: "DYNO Esport Manager" }
+                }
+              ]
+            }')
+
+          curl --fail-with-body \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK_URL"
+
+      - name: Publish summary
+        run: |
+          echo "## Notification Discord envoyée" >> "$GITHUB_STEP_SUMMARY"
+          echo "Le message de test DYNO a été envoyé dans le salon Discord configuré." >> "$GITHUB_STEP_SUMMARY"

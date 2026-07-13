@@ -1,10 +1,18 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { Theme } from "../constants/theme";
+import { registerForPushNotificationsAsync } from "../services/notifications";
 
 export default function RootLayout() {
+  useEffect(() => {
+    registerForPushNotificationsAsync().catch(() => {
+      // The app remains usable if notification permission is refused or unavailable.
+    });
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />

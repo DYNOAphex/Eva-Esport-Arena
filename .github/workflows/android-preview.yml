@@ -35,8 +35,8 @@ jobs:
       - name: Verify runner Node.js
         run: node --version && npm --version
 
-      - name: Install dependencies
-        run: npm install --no-package-lock
+      - name: Install dependencies and generate lockfile
+        run: npm install
 
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8

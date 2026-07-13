@@ -12,7 +12,6 @@ import {
 } from "react-native";
 
 import { Theme } from "../../constants/theme";
-import { loginWithEmail } from "../../services/authService";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -27,6 +26,7 @@ export default function LoginScreen() {
 
     try {
       setLoading(true);
+      const { loginWithEmail } = await import("../../services/authService");
       await loginWithEmail(email, password);
       router.replace("/(tabs)");
     } catch (error) {
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   link: {
-    color: Theme.colors.goldLight,
+    color: Theme.colors.gold,
     textAlign: "center",
     fontWeight: "700",
     marginTop: 22,

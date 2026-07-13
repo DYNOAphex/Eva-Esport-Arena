@@ -1,0 +1,63 @@
+name: Publish Preview OTA Update
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "components/**"
+      - "constants/**"
+      - "firebase/**"
+      - "services/**"
+      - "assets/**"
+      - "babel.config.js"
+      - "tsconfig.json"
+      - ".github/workflows/eas-update-preview.yml"
+
+concurrency:
+  group: eas-update-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: Publish preview update
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      CI: "1"
+      NODE_ENV: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm install --include=dev
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify linked Expo project
+        run: eas project:info --non-interactive
+
+      - name: Publish OTA update to preview
+        run: |
+          eas update \
+            --channel preview \
+            --message "Preview update from GitHub ${GITHUB_SHA::7}" \
+            --non-interactive
+
+      - name: Publish summary
+        run: |
+          echo "## EVA Esport Arena — mise à jour OTA" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "La mise à jour a été publiée sur le canal \`preview\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Elle sera téléchargée automatiquement par l'application compatible, puis appliquée au prochain redémarrage." >> "$GITHUB_STEP_SUMMARY"

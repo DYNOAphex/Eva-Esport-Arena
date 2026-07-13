@@ -28,6 +28,10 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      NODE_ENV: production
+      CI: "1"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,8 +39,14 @@ jobs:
       - name: Verify runner Node.js
         run: node --version && npm --version
 
-      - name: Install dependencies and generate lockfile
+      - name: Install dependencies
         run: npm install
+
+      - name: Align packages with Expo SDK 54
+        run: npx expo install --fix
+
+      - name: Verify Expo dependency health
+        run: npx expo-doctor
 
       - name: Setup Expo and EAS
         uses: expo/expo-github-action@v8
@@ -45,8 +55,7 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Verify linked Expo project
-        run: |
-          eas project:info --non-interactive
+        run: eas project:info --non-interactive
 
       - name: Start Android preview build
         id: eas-build

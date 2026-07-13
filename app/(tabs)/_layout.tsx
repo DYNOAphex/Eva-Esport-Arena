@@ -1,7 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { StyleSheet, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
+
+function CenterAction({ focused }: { focused: boolean }) {
+  return (
+    <View style={[styles.centerGlow, focused && styles.centerGlowActive]}>
+      <View style={styles.centerButton}>
+        <Ionicons name="add" size={38} color="#FFFFFF" />
+      </View>
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   return (
@@ -9,7 +20,8 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Theme.colors.goldLight,
-        tabBarInactiveTintColor: "#8A8A8A",
+        tabBarInactiveTintColor: "#929292",
+        tabBarHideOnKeyboard: true,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: "800",
@@ -17,25 +29,25 @@ export default function TabsLayout() {
         },
         tabBarStyle: {
           position: "absolute",
-          left: 16,
-          right: 16,
-          bottom: 12,
-          height: 74,
+          left: 14,
+          right: 14,
+          bottom: 10,
+          height: 76,
           paddingTop: 8,
           paddingBottom: 8,
-          borderRadius: 28,
-          backgroundColor: "rgba(12,12,12,0.97)",
+          borderRadius: 30,
+          backgroundColor: "rgba(7,7,7,0.96)",
           borderTopWidth: 1,
           borderWidth: 1,
-          borderColor: "rgba(212,175,55,0.38)",
+          borderColor: "rgba(224,184,67,0.42)",
           shadowColor: Theme.colors.gold,
-          shadowOpacity: 0.22,
-          shadowRadius: 18,
+          shadowOpacity: 0.28,
+          shadowRadius: 22,
           shadowOffset: { width: 0, height: 0 },
-          elevation: 14,
+          elevation: 18,
         },
         tabBarItemStyle: {
-          borderRadius: 20,
+          borderRadius: 22,
         },
       }}
     >
@@ -61,9 +73,8 @@ export default function TabsLayout() {
         name="scrims"
         options={{
           title: "Scrims",
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? "add-circle" : "add-circle-outline"} color={color} size={focused ? size + 8 : size + 6} />
-          ),
+          tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 10 },
+          tabBarIcon: ({ focused }) => <CenterAction focused={focused} />,
         }}
       />
       <Tabs.Screen
@@ -87,3 +98,36 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  centerGlow: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    marginTop: -23,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(217,175,49,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(241,205,97,0.7)",
+    shadowColor: Theme.colors.goldLight,
+    shadowOpacity: 0.75,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 20,
+  },
+  centerGlowActive: {
+    transform: [{ scale: 1.05 }],
+    backgroundColor: "rgba(217,175,49,0.28)",
+  },
+  centerButton: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(10,10,10,0.98)",
+    borderWidth: 1,
+    borderColor: "rgba(255,224,122,0.72)",
+  },
+});

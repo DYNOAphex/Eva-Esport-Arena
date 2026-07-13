@@ -1,0 +1,87 @@
+name: Build Android Preview APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "components/**"
+      - "constants/**"
+      - "firebase/**"
+      - "services/**"
+      - "app.json"
+      - "eas.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android-preview.yml"
+
+concurrency:
+  group: android-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Create installable APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Link or create EAS project
+        run: eas init --non-interactive --force
+
+      - name: Start Android preview build
+        id: eas-build
+        run: |
+          eas build \
+            --platform android \
+            --profile preview \
+            --non-interactive \
+            --no-wait \
+            --json > eas-build.json
+
+          cat eas-build.json
+
+          BUILD_URL=$(jq -r '.[0].buildDetailsPageUrl // empty' eas-build.json)
+          BUILD_ID=$(jq -r '.[0].id // empty' eas-build.json)
+
+          echo "build_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
+          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Publish build link in summary
+        run: |
+          echo "## EVA Esport Arena — Android Preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "La build Android a été envoyée à Expo EAS." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "${{ steps.eas-build.outputs.build_url }}" ]; then
+            echo "[Ouvrir la page de build et installer l’APK](${{ steps.eas-build.outputs.build_url }})" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Ouvre le tableau de bord Expo pour suivre la build." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -n "${{ steps.eas-build.outputs.build_id }}" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Build ID : \`${{ steps.eas-build.outputs.build_id }}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi

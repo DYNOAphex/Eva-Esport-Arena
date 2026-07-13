@@ -29,7 +29,6 @@ jobs:
 
     env:
       CI: "1"
-      NODE_ENV: production
 
     steps:
       - name: Checkout repository
@@ -47,10 +46,13 @@ jobs:
       - name: Verify linked Expo project
         run: eas project:info --non-interactive
 
-      - name: Publish OTA update to preview
+      - name: Publish OTA update to preview branch
+        env:
+          NODE_ENV: production
         run: |
           eas update \
-            --channel preview \
+            --branch preview \
+            --platform android \
             --message "Preview update from GitHub ${GITHUB_SHA::7}" \
             --non-interactive
 
@@ -58,6 +60,6 @@ jobs:
         run: |
           echo "## EVA Esport Arena — mise à jour OTA" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "La mise à jour a été publiée sur le canal \`preview\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "La mise à jour Android a été publiée sur la branche \`preview\`, liée au canal \`preview\`." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Elle sera téléchargée automatiquement par l'application compatible, puis appliquée au prochain redémarrage." >> "$GITHUB_STEP_SUMMARY"
+          echo "Ouvre l'application avec Internet, attends quelques secondes, ferme-la complètement puis rouvre-la." >> "$GITHUB_STEP_SUMMARY"

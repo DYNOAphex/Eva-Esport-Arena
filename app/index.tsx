@@ -1,6 +1,8 @@
 import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
+  Alert,
+  Linking,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -8,9 +10,29 @@ import {
   View,
 } from "react-native";
 
+import { AppLinks } from "../constants/links";
 import { Theme } from "../constants/theme";
 
 export default function HomeScreen() {
+  async function handleInstall() {
+    if (!AppLinks.install) {
+      Alert.alert(
+        "Installation bientôt disponible",
+        "Le lien d'installation sera activé dès que la première version Android sera publiée.",
+      );
+      return;
+    }
+
+    const supported = await Linking.canOpenURL(AppLinks.install);
+
+    if (!supported) {
+      Alert.alert("Lien indisponible", "Impossible d'ouvrir le lien d'installation.");
+      return;
+    }
+
+    await Linking.openURL(AppLinks.install);
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
@@ -23,13 +45,23 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      <TouchableOpacity
-        activeOpacity={0.85}
-        style={styles.button}
-        onPress={() => router.replace("/(auth)/login")}
-      >
-        <Text style={styles.buttonText}>COMMENCER</Text>
-      </TouchableOpacity>
+      <View style={styles.actions}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.button}
+          onPress={() => router.replace("/(auth)/login")}
+        >
+          <Text style={styles.buttonText}>COMMENCER</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={styles.installButton}
+          onPress={handleInstall}
+        >
+          <Text style={styles.installButtonText}>INSTALLER L'APPLICATION</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -68,6 +100,9 @@ const styles = StyleSheet.create({
     marginTop: 22,
     maxWidth: 280,
   },
+  actions: {
+    gap: 12,
+  },
   button: {
     height: 58,
     borderRadius: 18,
@@ -80,5 +115,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
     letterSpacing: 2,
+  },
+  installButton: {
+    height: 56,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Theme.colors.gold,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  installButtonText: {
+    color: Theme.colors.gold,
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 1.2,
   },
 });

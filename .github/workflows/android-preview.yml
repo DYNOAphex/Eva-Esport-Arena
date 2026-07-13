@@ -32,12 +32,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Verify Node.js version
+      - name: Verify runner Node.js
         run: node --version && npm --version
 
       - name: Install dependencies

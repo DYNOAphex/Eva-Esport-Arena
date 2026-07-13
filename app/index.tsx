@@ -26,7 +26,7 @@ export default function HomeScreen() {
       <TouchableOpacity
         activeOpacity={0.85}
         style={styles.button}
-        onPress={() => router.replace("/(tabs)")}
+        onPress={() => router.replace("/(auth)/login")}
       >
         <Text style={styles.buttonText}>COMMENCER</Text>
       </TouchableOpacity>

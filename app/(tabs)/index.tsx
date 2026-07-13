@@ -73,6 +73,7 @@ export default function DashboardScreen() {
     <SafeAreaView style={styles.container}>
       <ImageBackground source={marbleSource} resizeMode="cover" style={styles.background} imageStyle={styles.backgroundImage}>
         <View style={styles.backgroundShade} />
+        <View style={styles.vignetteTop} />
 
         <ScrollView
           contentContainerStyle={styles.content}
@@ -93,7 +94,7 @@ export default function DashboardScreen() {
 
           <View style={styles.header}>
             <TouchableOpacity style={styles.roundButton} activeOpacity={0.8}>
-              <Ionicons name="notifications-outline" size={24} color="#fff" />
+              <Ionicons name="notifications-outline" size={23} color="#fff" />
               <View style={styles.notificationDot} />
             </TouchableOpacity>
 
@@ -106,7 +107,7 @@ export default function DashboardScreen() {
             </View>
 
             <TouchableOpacity style={styles.coachBadge} activeOpacity={0.8}>
-              <Ionicons name="diamond" size={14} color={Theme.colors.goldLight} />
+              <Ionicons name="diamond" size={13} color={Theme.colors.goldLight} />
               <Text style={styles.coachLetter}>C</Text>
               <Text style={styles.coachRole}>Coach</Text>
             </TouchableOpacity>
@@ -114,6 +115,8 @@ export default function DashboardScreen() {
 
           <View style={styles.heroCard}>
             <View style={styles.whiteGlass} />
+            <View style={styles.goldHairline} />
+
             <View style={styles.heroTop}>
               <View style={styles.dateBadge}>
                 <Text style={styles.dateMonth}>JUIL.</Text>
@@ -148,7 +151,7 @@ export default function DashboardScreen() {
           <View style={styles.statsGrid}>
             {stats.map((stat) => (
               <View key={stat.label} style={styles.statCard}>
-                <Ionicons name={stat.icon} size={27} color={Theme.colors.goldLight} />
+                <Ionicons name={stat.icon} size={26} color={Theme.colors.goldLight} />
                 <Text style={styles.statValue}>{stat.value}</Text>
                 <Text style={styles.statLabel}>{stat.label}</Text>
                 <Text style={[styles.statDetail, stat.detail === "Victoire" && styles.green]}>{stat.detail}</Text>
@@ -169,7 +172,7 @@ export default function DashboardScreen() {
               {players.map((player) => (
                 <View key={player} style={styles.player}>
                   <View style={styles.avatar}>
-                    <Ionicons name="person" size={27} color="#E8E8E8" />
+                    <Text style={styles.avatarInitial}>{player.slice(0, 1)}</Text>
                     <View style={styles.playerDot} />
                   </View>
                   <Text style={styles.playerName}>{player}</Text>
@@ -186,7 +189,7 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.announcement}>
               <View style={styles.announcementIcon}>
-                <Ionicons name="megaphone-outline" size={34} color={Theme.colors.goldLight} />
+                <Ionicons name="megaphone-outline" size={33} color={Theme.colors.goldLight} />
               </View>
               <View style={styles.announcementContent}>
                 <Text style={styles.announcementTitle}>Scrim contre TITANS confirmé !</Text>
@@ -214,22 +217,24 @@ function Meta({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; va
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#070707" },
   background: { flex: 1 },
-  backgroundImage: { opacity: 0.95 },
-  backgroundShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.28)" },
-  content: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 120 },
-  refreshHint: { color: "rgba(246,215,106,0.85)", fontSize: 10, textAlign: "center", marginBottom: 2 },
-  header: { minHeight: 104, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  roundButton: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.78)", borderWidth: 1, borderColor: "rgba(212,175,55,0.58)" },
-  notificationDot: { position: "absolute", right: 7, top: 7, width: 11, height: 11, borderRadius: 6, backgroundColor: Theme.colors.gold },
+  backgroundImage: { opacity: 0.76 },
+  backgroundShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.48)" },
+  vignetteTop: { position: "absolute", top: 0, left: 0, right: 0, height: 190, backgroundColor: "rgba(0,0,0,0.24)" },
+  content: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 128 },
+  refreshHint: { color: "rgba(246,215,106,0.82)", fontSize: 10, textAlign: "center", marginBottom: 1 },
+  header: { minHeight: 96, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 15 },
+  roundButton: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.82)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" },
+  notificationDot: { position: "absolute", right: 7, top: 7, width: 10, height: 10, borderRadius: 5, backgroundColor: Theme.colors.gold },
   brand: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logo: { width: 52, height: 52, borderRadius: 14 },
-  brandName: { color: "#fff", fontSize: 29, fontWeight: "900", letterSpacing: 3 },
-  brandSub: { color: "#D1D1D1", fontSize: 9, fontWeight: "800", letterSpacing: 2.2 },
-  coachBadge: { width: 60, height: 78, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.82)", borderWidth: 1, borderColor: "rgba(212,175,55,0.58)" },
-  coachLetter: { color: "#fff", fontSize: 23, fontWeight: "900" },
+  logo: { width: 44, height: 44, borderRadius: 12 },
+  brandName: { color: "#fff", fontSize: 27, fontWeight: "900", letterSpacing: 2.7 },
+  brandSub: { color: "#D7D7D7", fontSize: 8, fontWeight: "800", letterSpacing: 2.1, marginTop: -1 },
+  coachBadge: { width: 58, height: 74, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.84)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" },
+  coachLetter: { color: "#fff", fontSize: 22, fontWeight: "900" },
   coachRole: { color: "#D0D0D0", fontSize: 10, fontWeight: "700" },
-  heroCard: { overflow: "hidden", borderRadius: 27, padding: 18, backgroundColor: "rgba(12,12,12,0.78)", borderWidth: 1, borderColor: "rgba(212,175,55,0.58)", shadowColor: Theme.colors.gold, shadowOpacity: 0.24, shadowRadius: 18, elevation: 10 },
-  whiteGlass: { position: "absolute", top: -45, right: -80, width: 270, height: 390, borderRadius: 130, backgroundColor: "rgba(255,255,255,0.16)", transform: [{ rotate: "15deg" }] },
+  heroCard: { overflow: "hidden", borderRadius: 27, padding: 18, backgroundColor: "rgba(9,9,9,0.68)", borderWidth: 1, borderColor: "rgba(224,184,67,0.48)", shadowColor: Theme.colors.gold, shadowOpacity: 0.2, shadowRadius: 16, elevation: 8 },
+  whiteGlass: { position: "absolute", top: -50, right: -96, width: 270, height: 410, borderRadius: 135, backgroundColor: "rgba(255,255,255,0.13)", transform: [{ rotate: "13deg" }] },
+  goldHairline: { position: "absolute", top: 0, left: 34, right: 34, height: 1, backgroundColor: "rgba(255,218,104,0.75)" },
   heroTop: { flexDirection: "row", alignItems: "center" },
   dateBadge: { width: 64, height: 74, borderRadius: 17, backgroundColor: "#F5F1E8", alignItems: "center", justifyContent: "center", marginRight: 16 },
   dateMonth: { color: "#725C1D", fontSize: 12, fontWeight: "900" },
@@ -239,20 +244,20 @@ const styles = StyleSheet.create({
   versusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: 28 },
   teamName: { color: "#fff", fontSize: 31, fontWeight: "900", letterSpacing: 1 },
   vs: { color: Theme.colors.gold, fontSize: 19, fontWeight: "900" },
-  metaRow: { flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.16)", paddingTop: 17 },
+  metaRow: { flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.13)", paddingTop: 17 },
   metaItem: { flex: 1, alignItems: "center" },
   metaValue: { color: "#fff", fontSize: 14, fontWeight: "900", marginTop: 6 },
   metaLabel: { color: "#D1D1D1", fontSize: 10, textAlign: "center", marginTop: 3 },
-  divider: { width: 1, height: 56, backgroundColor: "rgba(255,255,255,0.16)" },
-  confirmButton: { alignSelf: "center", minWidth: 190, height: 48, borderRadius: 24, marginTop: 19, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(5,5,5,0.82)", borderWidth: 1, borderColor: "rgba(212,175,55,0.58)" },
+  divider: { width: 1, height: 54, backgroundColor: "rgba(255,255,255,0.13)" },
+  confirmButton: { alignSelf: "center", minWidth: 190, height: 48, borderRadius: 24, marginTop: 19, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(4,4,4,0.88)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" },
   confirmText: { color: "#92DD54", fontSize: 17, fontWeight: "900" },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 14 },
-  statCard: { width: "48.4%", minHeight: 154, borderRadius: 23, padding: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.76)", borderWidth: 1, borderColor: "rgba(212,175,55,0.38)", marginBottom: 12 },
+  statCard: { width: "48.4%", minHeight: 154, borderRadius: 23, padding: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.68)", borderWidth: 1, borderColor: "rgba(224,184,67,0.3)", marginBottom: 12 },
   statValue: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 8 },
   statLabel: { color: "#fff", fontSize: 14, fontWeight: "900", marginTop: 2 },
   statDetail: { color: "#D0D0D0", fontSize: 11, marginTop: 6 },
   green: { color: "#8ED653" },
-  sectionCard: { borderRadius: 24, padding: 16, backgroundColor: "rgba(10,10,10,0.77)", borderWidth: 1, borderColor: "rgba(212,175,55,0.4)", marginBottom: 14 },
+  sectionCard: { borderRadius: 24, padding: 16, backgroundColor: "rgba(8,8,8,0.7)", borderWidth: 1, borderColor: "rgba(224,184,67,0.32)", marginBottom: 14 },
   sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   onlineTitle: { flexDirection: "row", alignItems: "center" },
   onlineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#7AD351", marginRight: 8 },
@@ -260,12 +265,13 @@ const styles = StyleSheet.create({
   seeAll: { color: Theme.colors.gold, fontSize: 12, fontWeight: "800" },
   playersRow: { gap: 15, paddingRight: 8 },
   player: { width: 65, alignItems: "center" },
-  avatar: { width: 59, height: 59, borderRadius: 30, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(28,28,28,0.92)", borderWidth: 1, borderColor: Theme.colors.gold },
+  avatar: { width: 59, height: 59, borderRadius: 30, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(18,18,18,0.94)", borderWidth: 1, borderColor: "rgba(241,205,97,0.78)" },
+  avatarInitial: { color: "#fff", fontSize: 22, fontWeight: "900" },
   playerDot: { position: "absolute", right: 1, bottom: 2, width: 13, height: 13, borderRadius: 7, backgroundColor: "#37CA4C", borderWidth: 2, borderColor: "#111" },
   playerName: { color: "#fff", fontSize: 11, fontWeight: "900", marginTop: 7 },
   playerStatus: { color: "#83D354", fontSize: 9, marginTop: 2 },
   announcement: { flexDirection: "row", alignItems: "center" },
-  announcementIcon: { width: 72, height: 72, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(212,175,55,0.1)", borderWidth: 1, borderColor: "rgba(212,175,55,0.48)", marginRight: 14 },
+  announcementIcon: { width: 70, height: 70, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(212,175,55,0.09)", borderWidth: 1, borderColor: "rgba(224,184,67,0.42)", marginRight: 14 },
   announcementContent: { flex: 1 },
   announcementTitle: { color: "#fff", fontSize: 14, fontWeight: "900" },
   announcementText: { color: "#D0D0D0", fontSize: 12, lineHeight: 18, marginTop: 5 },

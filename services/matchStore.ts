@@ -1,4 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  runTransaction,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import { auth } from "../firebase/auth";
+import { db } from "../firebase/firestore";
 
 export type MatchType = "Scrim" | "Division";
 export type MatchArena = "Arène 1" | "Arène 2";
@@ -6,6 +21,7 @@ export type MatchStatus = "En attente" | "Confirmé" | "Annulé";
 export type Availability = "Disponible" | "Indisponible" | "En attente";
 
 export type PlayerResponse = {
+  uid?: string;
   player: string;
   status: Availability;
 };
@@ -22,143 +38,138 @@ export type Match = {
   notes?: string;
   responses: PlayerResponse[];
   createdAt: string;
+  createdBy?: string;
 };
 
-const STORAGE_KEY = "dyno_matches_v2";
-const LEGACY_STORAGE_KEY = "dyno_matches_v1";
-const CURRENT_PLAYER = "DYNOxAphex";
-const roster = ["DYNOxAphex", "KroxX", "Neazy", "Zerox", "Venom", "Lyzen", "Skyzz"];
+const CACHE_KEY = "dyno_matches_firestore_cache_v1";
+const matchesCollection = collection(db, "matches");
 const listeners = new Set<(matches: Match[]) => void>();
+let latestMatches: Match[] = [];
+let unsubscribeSnapshot: (() => void) | null = null;
 
-const defaultResponses = (): PlayerResponse[] => roster.map((player) => ({ player, status: "En attente" }));
+export function getCurrentPlayerName() {
+  const user = auth.currentUser;
+  return user?.displayName?.trim() || user?.email?.split("@")[0] || "Joueur DYNO";
+}
 
-const seedMatches: Match[] = [
-  {
-    id: "seed-phoenix",
-    type: "Scrim",
-    opponent: "Team Phoenix",
-    date: "2026-07-17",
-    arrivalTime: "19:30",
-    matchTime: "20:00",
-    arena: "Arène 2",
-    status: "Confirmé",
-    notes: "",
-    responses: [
-      { player: "DYNOxAphex", status: "Disponible" },
-      { player: "KroxX", status: "Disponible" },
-      { player: "Neazy", status: "Disponible" },
-      { player: "Zerox", status: "Indisponible" },
-      { player: "Venom", status: "En attente" },
-      { player: "Lyzen", status: "Disponible" },
-      { player: "Skyzz", status: "En attente" },
-    ],
-    createdAt: new Date(2026, 6, 14).toISOString(),
-  },
-];
+function requireUser() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Tu dois être connecté pour modifier les matchs.");
+  return user;
+}
+
+function normalizeMatch(id: string, data: any): Match {
+  return {
+    id,
+    type: data.type === "Division" ? "Division" : "Scrim",
+    opponent: String(data.opponent ?? "Adversaire"),
+    date: String(data.date ?? ""),
+    arrivalTime: String(data.arrivalTime ?? "19:30"),
+    matchTime: String(data.matchTime ?? data.time ?? "20:00"),
+    arena: data.arena === "Arène 2" ? "Arène 2" : "Arène 1",
+    status: data.status === "Confirmé" || data.status === "Annulé" ? data.status : "En attente",
+    notes: String(data.notes ?? ""),
+    responses: Array.isArray(data.responses) ? data.responses : [],
+    createdAt: data.createdAt?.toDate?.().toISOString?.() ?? String(data.createdAt ?? new Date().toISOString()),
+    createdBy: data.createdBy,
+  };
+}
 
 function sortMatches(matches: Match[]) {
   return [...matches].sort((a, b) => `${a.date}T${a.matchTime}`.localeCompare(`${b.date}T${b.matchTime}`));
 }
 
-function normalizeMatch(match: any): Match {
-  const matchTime = match.matchTime ?? match.time ?? "20:00";
-  const arrivalTime = match.arrivalTime ?? previousHalfHour(matchTime);
-  const responses = Array.isArray(match.responses)
-    ? match.responses
-    : defaultResponses().map((response) =>
-        response.player === CURRENT_PLAYER && match.availability
-          ? { ...response, status: match.availability === "Disponible" ? "Disponible" : "Indisponible" }
-          : response,
-      );
-
-  return {
-    id: String(match.id),
-    type: match.type === "Division" ? "Division" : "Scrim",
-    opponent: String(match.opponent ?? "Adversaire"),
-    date: String(match.date),
-    arrivalTime,
-    matchTime,
-    arena: match.arena === "Arène 2" ? "Arène 2" : "Arène 1",
-    status: ["Confirmé", "Annulé"].includes(match.status) ? match.status : "En attente",
-    notes: match.notes ?? "",
-    responses,
-    createdAt: match.createdAt ?? new Date().toISOString(),
-  };
+async function cacheAndEmit(matches: Match[]) {
+  latestMatches = sortMatches(matches);
+  await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(latestMatches));
+  listeners.forEach((listener) => listener(latestMatches));
+  return latestMatches;
 }
 
-function previousHalfHour(time: string) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const date = new Date(2000, 0, 1, hours || 0, minutes || 0);
-  date.setMinutes(date.getMinutes() - 30);
-  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-}
-
-async function persist(matches: Match[]) {
-  const sorted = sortMatches(matches.map(normalizeMatch));
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
-  listeners.forEach((listener) => listener(sorted));
-  return sorted;
+async function readCache() {
+  const cached = await AsyncStorage.getItem(CACHE_KEY);
+  if (!cached) return [];
+  try {
+    return sortMatches(JSON.parse(cached) as Match[]);
+  } catch {
+    return [];
+  }
 }
 
 export async function getMatches(): Promise<Match[]> {
-  const stored = await AsyncStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    try {
-      return sortMatches((JSON.parse(stored) as Match[]).map(normalizeMatch));
-    } catch {
-      return persist(seedMatches);
-    }
+  try {
+    const snapshot = await getDocs(query(matchesCollection, orderBy("date", "asc")));
+    return cacheAndEmit(snapshot.docs.map((item) => normalizeMatch(item.id, item.data())));
+  } catch {
+    const cached = await readCache();
+    latestMatches = cached;
+    return cached;
   }
-
-  const legacy = await AsyncStorage.getItem(LEGACY_STORAGE_KEY);
-  if (legacy) {
-    try {
-      return persist((JSON.parse(legacy) as unknown[]).map(normalizeMatch));
-    } catch {
-      return persist(seedMatches);
-    }
-  }
-
-  return persist(seedMatches);
 }
 
-export async function createMatch(input: Omit<Match, "id" | "createdAt" | "responses">) {
-  const matches = await getMatches();
-  const match: Match = {
+export async function createMatch(input: Omit<Match, "id" | "createdAt" | "responses" | "createdBy">) {
+  const user = requireUser();
+  const payload = {
     ...input,
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    responses: defaultResponses(),
-    createdAt: new Date().toISOString(),
+    responses: [] as PlayerResponse[],
+    createdBy: user.uid,
+    createdAt: serverTimestamp(),
   };
-
-  await persist([...matches, match]);
-  return match;
+  const reference = await addDoc(matchesCollection, payload);
+  return normalizeMatch(reference.id, { ...payload, createdAt: new Date().toISOString() });
 }
 
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {
-  const matches = await getMatches();
-  return persist(
-    matches.map((match) =>
-      match.id === matchId
-        ? {
-            ...match,
-            responses: match.responses.map((response) =>
-              response.player === CURRENT_PLAYER ? { ...response, status: availability } : response,
-            ),
-          }
-        : match,
-    ),
-  );
+  const user = requireUser();
+  const reference = doc(db, "matches", matchId);
+
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(reference);
+    if (!snapshot.exists()) throw new Error("Ce match n'existe plus.");
+
+    const responses = Array.isArray(snapshot.data().responses) ? [...snapshot.data().responses] as PlayerResponse[] : [];
+    const player = getCurrentPlayerName();
+    const existingIndex = responses.findIndex((response) => response.uid === user.uid);
+    const response: PlayerResponse = { uid: user.uid, player, status: availability };
+
+    if (existingIndex >= 0) responses[existingIndex] = response;
+    else responses.push(response);
+
+    transaction.update(reference, { responses });
+  });
 }
 
 export async function deleteMatch(matchId: string) {
-  const matches = await getMatches();
-  return persist(matches.filter((match) => match.id !== matchId));
+  requireUser();
+  await deleteDoc(doc(db, "matches", matchId));
 }
 
 export function subscribeToMatches(listener: (matches: Match[]) => void) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  if (latestMatches.length) listener(latestMatches);
+
+  if (!unsubscribeSnapshot) {
+    unsubscribeSnapshot = onSnapshot(
+      query(matchesCollection, orderBy("date", "asc")),
+      (snapshot) => {
+        void cacheAndEmit(snapshot.docs.map((item) => normalizeMatch(item.id, item.data())));
+      },
+      () => {
+        void readCache().then((cached) => {
+          latestMatches = cached;
+          listeners.forEach((currentListener) => currentListener(cached));
+        });
+      },
+    );
+  }
+
+  return () => {
+    listeners.delete(listener);
+    if (!listeners.size && unsubscribeSnapshot) {
+      unsubscribeSnapshot();
+      unsubscribeSnapshot = null;
+    }
+  };
 }
 
 export function toMatchDate(match: Pick<Match, "date" | "matchTime">) {

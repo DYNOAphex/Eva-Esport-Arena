@@ -56,7 +56,7 @@ jobs:
           test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Secret ANDROID_KEYSTORE_BASE64 manquant" && exit 1)
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/dyno-release.jks
 
-      - name: Configure release signing
+      - name: Configure release signing and Gradle memory
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -71,6 +71,10 @@ jobs:
           DYNO_UPLOAD_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD
           DYNO_UPLOAD_KEY_ALIAS=$ANDROID_KEY_ALIAS
           DYNO_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8
+          org.gradle.daemon=false
+          org.gradle.workers.max=2
+          kotlin.daemon.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m
           EOF
 
           python3 - <<'PY'
@@ -104,7 +108,9 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4g -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 --stacktrace
 
       - name: Rename APK
         run: cp android/app/build/outputs/apk/release/app-release.apk DYNO-Esport-Manager.apk

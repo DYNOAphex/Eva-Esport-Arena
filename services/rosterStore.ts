@@ -20,26 +20,22 @@ type FirestoreDocument = { name: string; fields?: Record<string, FirestoreValue>
 
 const STORAGE_KEY = "dyno_roster_local_v1";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/roster`;
+const LEGACY_SEEDED_IDS = new Set(["kroxx", "neazy", "zerox", "venom", "lyzen", "skyzz"]);
 const listeners = new Set<(players: RosterPlayer[]) => void>();
 let latestPlayers: RosterPlayer[] = [];
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let syncInProgress = false;
 
-const defaults: RosterPlayer[] = [
-  { id: "kroxx", nickname: "KroxX", role: "Capitaine", status: "Disponible", createdAt: new Date(0).toISOString() },
-  { id: "neazy", nickname: "Neazy", role: "Joueur", status: "Disponible", createdAt: new Date(0).toISOString() },
-  { id: "zerox", nickname: "Zerox", role: "Joueur", status: "Disponible", createdAt: new Date(0).toISOString() },
-  { id: "venom", nickname: "Venom", role: "Joueur", status: "Disponible", createdAt: new Date(0).toISOString() },
-  { id: "lyzen", nickname: "Lyzen", role: "Joueur", status: "Disponible", createdAt: new Date(0).toISOString() },
-  { id: "skyzz", nickname: "Skyzz", role: "Remplaçant", status: "Disponible", createdAt: new Date(0).toISOString() },
-];
-
 function sortPlayers(players: RosterPlayer[]) {
   return [...players].sort((a, b) => a.nickname.localeCompare(b.nickname, "fr"));
 }
 
+function removeLegacySeeds(players: RosterPlayer[]) {
+  return players.filter((player) => !LEGACY_SEEDED_IDS.has(player.id));
+}
+
 async function persist(players: RosterPlayer[]) {
-  latestPlayers = sortPlayers(players);
+  latestPlayers = sortPlayers(removeLegacySeeds(players));
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latestPlayers));
   listeners.forEach((listener) => listener(latestPlayers));
   return latestPlayers;
@@ -47,11 +43,14 @@ async function persist(players: RosterPlayer[]) {
 
 async function readStoredPlayers() {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!raw) return defaults;
+  if (!raw) return [];
   try {
-    return sortPlayers(JSON.parse(raw) as RosterPlayer[]);
+    const players = removeLegacySeeds(JSON.parse(raw) as RosterPlayer[]);
+    if (!players.length) await AsyncStorage.removeItem(STORAGE_KEY);
+    return sortPlayers(players);
   } catch {
-    return defaults;
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    return [];
   }
 }
 
@@ -105,7 +104,18 @@ async function fetchCloudRoster() {
   const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`);
   if (!response.ok) throw new Error("Synchronisation de l'équipe impossible.");
   const data = (await response.json()) as { documents?: FirestoreDocument[] };
-  return sortPlayers((data.documents ?? []).map(documentToPlayer));
+  const players = (data.documents ?? []).map(documentToPlayer);
+  const seeded = players.filter((player) => LEGACY_SEEDED_IDS.has(player.id));
+
+  if (seeded.length) {
+    await Promise.all(
+      seeded.map((player) =>
+        firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(player.id)}`, { method: "DELETE" }),
+      ),
+    );
+  }
+
+  return sortPlayers(removeLegacySeeds(players));
 }
 
 async function uploadPlayer(player: RosterPlayer) {
@@ -120,13 +130,7 @@ async function syncFromCloud() {
   if (syncInProgress) return latestPlayers;
   syncInProgress = true;
   try {
-    const cloud = await fetchCloudRoster();
-    const local = await readStoredPlayers();
-    if (!cloud.length && local.length) {
-      await Promise.all(local.map(uploadPlayer));
-      return persist(local);
-    }
-    return persist(cloud);
+    return persist(await fetchCloudRoster());
   } catch {
     const local = await readStoredPlayers();
     latestPlayers = local;
@@ -172,11 +176,9 @@ export async function deleteRosterPlayer(playerId: string) {
 
 export function subscribeToRoster(listener: (players: RosterPlayer[]) => void) {
   listeners.add(listener);
-  if (latestPlayers.length) listener(latestPlayers);
+  listener(latestPlayers);
   void syncFromCloud();
-  if (!pollTimer) {
-    pollTimer = setInterval(() => void syncFromCloud(), 5000);
-  }
+  if (!pollTimer) pollTimer = setInterval(() => void syncFromCloud(), 5000);
   return () => {
     listeners.delete(listener);
     if (!listeners.size && pollTimer) {

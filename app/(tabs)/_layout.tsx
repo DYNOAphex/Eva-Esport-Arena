@@ -17,17 +17,13 @@ function CenterAction({ focused }: { focused: boolean }) {
 export default function TabsLayout() {
   return (
     <Tabs
-      initialRouteName="index"
+      initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Theme.colors.goldLight,
         tabBarInactiveTintColor: "#929292",
         tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "800",
-          marginTop: 2,
-        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "800", marginTop: 2 },
         tabBarStyle: {
           position: "absolute",
           left: 14,
@@ -47,12 +43,11 @@ export default function TabsLayout() {
           shadowOffset: { width: 0, height: 0 },
           elevation: 18,
         },
-        tabBarItemStyle: {
-          borderRadius: 22,
-        },
+        tabBarItemStyle: { borderRadius: 22 },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={focused ? size + 2 : size} /> }} />
+      <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={focused ? size + 2 : size} /> }} />
+      <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="planning" options={{ title: "Agenda", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} color={color} size={focused ? size + 2 : size} /> }} />
       <Tabs.Screen name="scrims" options={{ title: "Scrims", tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 10 }, tabBarIcon: ({ focused }) => <CenterAction focused={focused} /> }} />
       <Tabs.Screen name="team" options={{ title: "Équipe", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "people" : "people-outline"} color={color} size={focused ? size + 2 : size} /> }} />

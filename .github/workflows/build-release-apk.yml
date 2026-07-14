@@ -25,8 +25,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       GH_TOKEN: ${{ github.token }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
     steps:
       - name: Checkout repository
@@ -39,18 +42,24 @@ jobs:
         with:
           node-version: 22
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
       - name: Install dependencies
         run: npm install
 
-      - name: Install EAS CLI
-        run: npm install --global eas-cli
-
-      - name: Check Expo token
+      - name: Check Android signing secrets
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then
-            echo "Le secret GitHub EXPO_TOKEN est manquant."
-            exit 1
-          fi
+          for NAME in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!NAME}" ]; then
+              echo "Le secret GitHub $NAME est manquant."
+              exit 1
+            fi
+          done
 
       - name: Calculate release version
         id: version
@@ -80,28 +89,64 @@ jobs:
           node - <<'NODE'
           const fs = require('fs');
           const version = process.env.VERSION;
-          for (const file of ['app.json', 'package.json']) {
-            const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-            if (file === 'app.json') data.expo.version = version;
-            else data.version = version;
-            fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
-          }
+          const [major, minor, patch] = version.split('.').map(Number);
+          const versionCode = major * 10000 + minor * 100 + patch;
+
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          app.expo.version = version;
+          app.expo.android = app.expo.android || {};
+          app.expo.android.versionCode = versionCode;
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          pkg.version = version;
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           NODE
 
-      - name: Build Android APK with EAS
-        run: eas build --platform android --profile preview --non-interactive --wait --json > eas-build.json
+      - name: Generate native Android project
+        env:
+          CI: "1"
+        run: npx expo prebuild --platform android --clean
 
-      - name: Download APK
+      - name: Configure release signing
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/dyno-release.keystore
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'android/app/build.gradle';
+          let gradle = fs.readFileSync(path, 'utf8');
+
+          const signingBlock = `signingConfigs {\n        release {\n            storeFile file('dyno-release.keystore')\n            storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')\n            keyAlias System.getenv('ANDROID_KEY_ALIAS')\n            keyPassword System.getenv('ANDROID_KEY_PASSWORD')\n        }`;
+
+          if (!gradle.includes('signingConfigs {')) {
+            throw new Error('Bloc signingConfigs introuvable dans android/app/build.gradle');
+          }
+          gradle = gradle.replace('signingConfigs {', signingBlock);
+
+          const debugSigning = 'signingConfig signingConfigs.debug';
+          const lastIndex = gradle.lastIndexOf(debugSigning);
+          if (lastIndex < 0) {
+            throw new Error('Configuration de signature release introuvable');
+          }
+          gradle = gradle.slice(0, lastIndex) + 'signingConfig signingConfigs.release' + gradle.slice(lastIndex + debugSigning.length);
+          fs.writeFileSync(path, gradle);
+          NODE
+
+      - name: Build signed Android APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare APK
         env:
           APK_NAME: ${{ steps.version.outputs.apk }}
         run: |
-          BUILD_URL="$(node -e "const d=require('./eas-build.json'); const b=Array.isArray(d)?d[0]:d; process.stdout.write(b.artifacts?.buildUrl || b.artifacts?.applicationArchiveUrl || '')")"
-          if [ -z "$BUILD_URL" ]; then
-            cat eas-build.json
-            echo "URL de téléchargement EAS introuvable."
+          SOURCE="android/app/build/outputs/apk/release/app-release.apk"
+          if [ ! -f "$SOURCE" ]; then
+            echo "APK compilée introuvable: $SOURCE"
+            find android/app/build/outputs -type f || true
             exit 1
           fi
-          curl --fail --location "$BUILD_URL" --output "$APK_NAME"
+          cp "$SOURCE" "$APK_NAME"
 
       - name: Create GitHub Release
         env:

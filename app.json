@@ -1,12 +1,18 @@
 {
   "expo": {
-    "name": "Eva Esport Arena",
+    "name": "DYNO Esport Manager",
     "slug": "eva-esport-arena",
     "owner": "dynoxaphexs-team",
     "scheme": "evaesportarena",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/images/logo-dyno.png",
+    "splash": {
+      "image": "./assets/images/logo-dyno.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#050505"
+    },
     "plugins": [
       "expo-router",
       "expo-updates",
@@ -19,6 +25,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/images/logo-dyno.png",
           "color": "#D4AF37",
           "defaultChannel": "matches"
         }
@@ -32,6 +39,10 @@
     },
     "android": {
       "package": "com.dynoaphex.evaesportarena",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logo-dyno.png",
+        "backgroundColor": "#050505"
+      },
       "permissions": [
         "READ_CALENDAR",
         "WRITE_CALENDAR"

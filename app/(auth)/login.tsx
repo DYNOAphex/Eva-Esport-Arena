@@ -38,7 +38,7 @@ export default function LoginScreen() {
       setLoading(true);
       const { loginWithEmail } = await import("../../services/authService");
       await loginWithEmail(email, password);
-      router.replace("/(tabs)/index");
+      router.replace("/(tabs)/home");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Connexion impossible.";
       Alert.alert("Erreur de connexion", message);

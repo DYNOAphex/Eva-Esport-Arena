@@ -91,12 +91,7 @@ export default function ProfileScreen() {
       "Android bloque actuellement les notifications DYNO. Ouvre les réglages de l'application et active Notifications.",
       [
         { text: "Annuler", style: "cancel" },
-        {
-          text: "Ouvrir les réglages",
-          onPress: () => {
-            void Linking.openSettings();
-          },
-        },
+        { text: "Ouvrir les réglages", onPress: () => void Linking.openSettings() },
       ],
     );
   }
@@ -170,6 +165,16 @@ export default function ProfileScreen() {
                 <Text style={styles.updateSubtitle}>{updateInfo?.updateAvailable ? `Version ${updateInfo.latestVersion} disponible` : "Vérifie les Releases GitHub DYNO."}</Text>
               </View>
             </View>
+
+            {updateInfo?.releaseNotes.length ? (
+              <View style={styles.releaseNotes}>
+                <Text style={styles.releaseNotesTitle}>NOUVEAUTÉS</Text>
+                {updateInfo.releaseNotes.map((note, index) => (
+                  <Text key={`${note}-${index}`} style={styles.releaseNote}>• {note}</Text>
+                ))}
+              </View>
+            ) : null}
+
             <TouchableOpacity style={styles.updateButton} onPress={() => updateInfo?.updateAvailable ? void openAppUpdate(updateInfo) : void checkUpdate()}>
               <Text style={styles.updateButtonText}>{updateInfo?.updateAvailable ? "TÉLÉCHARGER LA MISE À JOUR" : checkingUpdate ? "VÉRIFICATION..." : "RECHERCHER UNE MISE À JOUR"}</Text>
             </TouchableOpacity>
@@ -199,6 +204,6 @@ const styles = StyleSheet.create({
   profileCard: { flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 24, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.4)" }, avatar: { width: 68, height: 68, borderRadius: 20, marginRight: 14 }, profileInfo: { flex: 1 }, name: { color: "#fff", fontSize: 22, fontWeight: "900" }, email: { color: Theme.colors.goldLight, fontSize: 11, marginTop: 5, maxWidth: 210 }, onlineRow: { flexDirection: "row", alignItems: "center", marginTop: 8 }, onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4AD45E", marginRight: 6 }, onlineText: { color: "#BEBEBE", fontSize: 11 },
   sectionLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1.3, marginTop: 24, marginBottom: 10 }, statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }, statCard: { width: "48.4%", minHeight: 125, borderRadius: 21, alignItems: "center", justifyContent: "center", marginBottom: 12, backgroundColor: "rgba(8,8,8,0.74)", borderWidth: 1, borderColor: "rgba(224,184,67,0.3)" }, statValue: { color: "#fff", fontSize: 27, fontWeight: "900", marginTop: 8 }, statLabel: { color: "#CFCFCF", fontSize: 11, marginTop: 3 },
   settingsCard: { borderRadius: 22, paddingHorizontal: 14, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.34)" }, settingRow: { minHeight: 64, flexDirection: "row", alignItems: "center" }, settingIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(224,184,67,0.09)", marginRight: 11 }, settingLabel: { flex: 1, color: "#fff", fontWeight: "800" }, settingValue: { color: "#AFAFAF", fontSize: 11, marginRight: 7 }, separator: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginLeft: 49 },
-  updateCard: { padding: 17, borderRadius: 22, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.34)" }, updateHeader: { flexDirection: "row", alignItems: "center" }, updateText: { flex: 1, marginLeft: 12 }, updateTitle: { color: "#fff", fontWeight: "900" }, updateSubtitle: { color: "#AFAFAF", fontSize: 11, marginTop: 4 }, updateButton: { minHeight: 46, marginTop: 15, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, updateButtonText: { color: "#090909", fontSize: 11, fontWeight: "900" },
+  updateCard: { padding: 17, borderRadius: 22, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.34)" }, updateHeader: { flexDirection: "row", alignItems: "center" }, updateText: { flex: 1, marginLeft: 12 }, updateTitle: { color: "#fff", fontWeight: "900" }, updateSubtitle: { color: "#AFAFAF", fontSize: 11, marginTop: 4 }, releaseNotes: { marginTop: 15, paddingTop: 13, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)" }, releaseNotesTitle: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.1, marginBottom: 7 }, releaseNote: { color: "#D5D5D5", fontSize: 11, lineHeight: 17, marginBottom: 3 }, updateButton: { minHeight: 46, marginTop: 15, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, updateButtonText: { color: "#090909", fontSize: 11, fontWeight: "900" },
   logoutButton: { minHeight: 54, borderRadius: 18, marginTop: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(130,20,20,0.16)", borderWidth: 1, borderColor: "rgba(255,100,100,0.28)" }, logoutText: { color: "#FF8585", fontWeight: "900" },
 });

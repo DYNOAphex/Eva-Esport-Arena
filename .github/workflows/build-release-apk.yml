@@ -24,6 +24,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     env:
       GH_TOKEN: ${{ github.token }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -107,6 +108,17 @@ jobs:
           CI: "1"
         run: npx expo prebuild --platform android --clean
 
+      - name: Configure Gradle memory
+        run: |
+          cat >> android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8
+          org.gradle.workers.max=2
+          org.gradle.parallel=false
+          org.gradle.daemon=false
+          kotlin.compiler.execution.strategy=in-process
+          kotlin.incremental=false
+          EOF
+
       - name: Configure release signing
         run: |
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > android/app/dyno-release.keystore
@@ -137,7 +149,8 @@ jobs:
 
       - name: Build signed Android APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
+        timeout-minutes: 25
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 --stacktrace
 
       - name: Prepare APK
         env:

@@ -215,8 +215,8 @@ export async function createMatch(input: Omit<Match, "id" | "createdAt" | "respo
     responses: [],
   };
 
-  await persist([...matches, match]);
   await uploadMatch(match);
+  await persist([...matches, match]);
   return match;
 }
 
@@ -237,16 +237,17 @@ export async function setMatchAvailability(matchId: string, availability: Exclud
     return changed;
   });
 
+  if (!changed) throw new Error("Ce match n'existe plus.");
+  await uploadMatch(changed);
   await persist(updated);
-  if (changed) await uploadMatch(changed);
 }
 
 export async function deleteMatch(matchId: string) {
   await requireUser();
   const matches = await readStoredMatches();
-  await persist(matches.filter((match) => match.id !== matchId));
   const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(matchId)}`, { method: "DELETE" });
   if (!response.ok && response.status !== 404) throw new Error("Suppression Firebase impossible.");
+  await persist(matches.filter((match) => match.id !== matchId));
 }
 
 export function subscribeToMatches(listener: (matches: Match[]) => void) {

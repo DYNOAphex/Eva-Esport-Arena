@@ -1,78 +1,53 @@
-import { firebaseConfig } from "../firebase/config";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 
-type FirebaseAuthResponse = {
-  idToken: string;
-  email: string;
-  refreshToken: string;
-  expiresIn: string;
-  localId: string;
-};
-
-type FirebaseErrorResponse = {
-  error?: {
-    message?: string;
-  };
-};
+import { auth } from "../firebase/auth";
 
 function getFriendlyError(code?: string) {
   switch (code) {
-    case "EMAIL_EXISTS":
+    case "auth/email-already-in-use":
       return "Cette adresse e-mail est déjà utilisée.";
-    case "INVALID_EMAIL":
+    case "auth/invalid-email":
       return "L'adresse e-mail n'est pas valide.";
-    case "WEAK_PASSWORD : Password should be at least 6 characters":
-    case "WEAK_PASSWORD":
+    case "auth/weak-password":
       return "Le mot de passe doit contenir au moins 6 caractères.";
-    case "EMAIL_NOT_FOUND":
-    case "INVALID_LOGIN_CREDENTIALS":
-    case "INVALID_PASSWORD":
-      return "Adresse e-mail ou mot de passe incorrect.";
-    case "USER_DISABLED":
+    case "auth/user-disabled":
       return "Ce compte a été désactivé.";
-    case "TOO_MANY_ATTEMPTS_TRY_LATER":
+    case "auth/too-many-requests":
       return "Trop de tentatives. Réessaie dans quelques minutes.";
+    case "auth/invalid-credential":
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+      return "Adresse e-mail ou mot de passe incorrect.";
     default:
-      return code ? `Erreur Firebase : ${code}` : "Une erreur est survenue.";
+      return "Une erreur Firebase est survenue.";
   }
 }
 
-async function callFirebaseAuth(
-  endpoint: "signUp" | "signInWithPassword",
-  email: string,
-  password: string,
-): Promise<FirebaseAuthResponse> {
-  const response = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:${endpoint}?key=${firebaseConfig.apiKey}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: email.trim(),
-        password,
-        returnSecureToken: true,
-      }),
-    },
-  );
+function normalizeAuthError(error: unknown): never {
+  const code = typeof error === "object" && error && "code" in error ? String(error.code) : undefined;
+  throw new Error(getFriendlyError(code));
+}
 
-  const data = (await response.json()) as FirebaseAuthResponse & FirebaseErrorResponse;
-
-  if (!response.ok) {
-    throw new Error(getFriendlyError(data.error?.message));
+export async function registerWithEmail(email: string, password: string) {
+  try {
+    return await createUserWithEmailAndPassword(auth, email.trim(), password);
+  } catch (error) {
+    normalizeAuthError(error);
   }
-
-  return data;
 }
 
-export function registerWithEmail(email: string, password: string) {
-  return callFirebaseAuth("signUp", email, password);
-}
-
-export function loginWithEmail(email: string, password: string) {
-  return callFirebaseAuth("signInWithPassword", email, password);
+export async function loginWithEmail(email: string, password: string) {
+  try {
+    return await signInWithEmailAndPassword(auth, email.trim(), password);
+  } catch (error) {
+    normalizeAuthError(error);
+  }
 }
 
 export async function logout() {
-  return Promise.resolve();
+  await signOut(auth);
 }

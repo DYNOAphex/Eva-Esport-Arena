@@ -6,24 +6,28 @@ if (!webhookUrl) {
   throw new Error("Missing DISCORD_WEBHOOK_URL secret.");
 }
 
+// Only matches created after the free notification workflow was released are eligible.
+// This lets older installed APKs work without announcing historical matches.
+const ROLLOUT_DATE = new Date("2026-07-14T13:53:55.000Z");
+
 initializeApp({
   credential: applicationDefault(),
   projectId: "eva-esport-arena",
 });
 
 const db = getFirestore();
-const snapshot = await db
-  .collection("matches")
-  .where("discordNotificationPending", "==", true)
-  .limit(20)
-  .get();
+const snapshot = await db.collection("matches").limit(100).get();
+const pendingDocuments = snapshot.docs
+  .filter((document) => shouldNotify(document.data()))
+  .sort((a, b) => dateValue(a.data().createdAt) - dateValue(b.data().createdAt))
+  .slice(0, 20);
 
-if (snapshot.empty) {
+if (!pendingDocuments.length) {
   console.log("No pending Discord announcements.");
   process.exit(0);
 }
 
-for (const document of snapshot.docs) {
+for (const document of pendingDocuments) {
   const match = document.data();
 
   try {
@@ -37,6 +41,15 @@ for (const document of snapshot.docs) {
     console.error(`Failed to notify match ${document.id}.`, error);
     process.exitCode = 1;
   }
+}
+
+function shouldNotify(match) {
+  if (typeof match.discordNotifiedAt === "string" && match.discordNotifiedAt.trim()) return false;
+  if (match.discordNotificationPending === true) return true;
+
+  // Compatibility for matches created by APKs installed before the pending flag existed.
+  const createdAt = new Date(match.createdAt);
+  return !Number.isNaN(createdAt.getTime()) && createdAt >= ROLLOUT_DATE;
 }
 
 async function sendDiscordNotification(match) {
@@ -88,6 +101,11 @@ async function sendDiscordNotification(match) {
 
 function stringOr(value, fallback) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function dateValue(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime();
 }
 
 function formatFrenchDate(value) {

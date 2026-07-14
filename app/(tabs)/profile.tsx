@@ -14,8 +14,13 @@ import {
 } from "react-native";
 
 import { Theme } from "../../constants/theme";
+import { getAppSettings, updateAppSettings } from "../../services/appSettings";
+import { checkForAppUpdate, getInstalledVersion, openAppUpdate } from "../../services/appUpdateService";
 import { getStoredSession, logout } from "../../services/authService";
 import { getMatches, subscribeToMatches } from "../../services/matchStore";
+import { registerForPushNotificationsAsync } from "../../services/notifications";
+import type { AppearanceMode } from "../../services/appSettings";
+import type { AppUpdateInfo } from "../../services/appUpdateService";
 import type { AuthSession } from "../../services/authService";
 import type { Match } from "../../services/matchStore";
 
@@ -30,11 +35,20 @@ function displayNameFromEmail(email?: string) {
 export default function ProfileScreen() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [appearance, setAppearance] = useState<AppearanceMode>("gold");
+  const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
 
   useEffect(() => {
     let active = true;
     void getStoredSession().then((value) => active && setSession(value));
     void getMatches().then((items) => active && setMatches(items));
+    void getAppSettings().then((settings) => {
+      if (!active) return;
+      setNotificationsEnabled(settings.notificationsEnabled);
+      setAppearance(settings.appearance);
+    });
     const unsubscribe = subscribeToMatches(setMatches);
     return () => {
       active = false;
@@ -44,41 +58,65 @@ export default function ProfileScreen() {
 
   const stats = useMemo(() => {
     const uid = session?.localId;
-    const responses = uid
-      ? matches.flatMap((match) => match.responses.filter((response) => response.uid === uid))
-      : [];
+    const responses = uid ? matches.flatMap((match) => match.responses.filter((response) => response.uid === uid)) : [];
     const available = responses.filter((response) => response.status === "Disponible").length;
     const answered = responses.filter((response) => response.status !== "En attente").length;
-    const presenceRate = answered ? Math.round((available / answered) * 100) : 0;
-    const responseRate = matches.length ? Math.round((answered / matches.length) * 100) : 0;
-
     return {
       matches: matches.length,
       confirmed: matches.filter((match) => match.status === "Confirmé").length,
-      presenceRate,
-      responseRate,
+      presenceRate: answered ? Math.round((available / answered) * 100) : 0,
+      responseRate: matches.length ? Math.round((answered / matches.length) * 100) : 0,
     };
   }, [matches, session?.localId]);
+
+  async function toggleNotifications() {
+    if (notificationsEnabled) {
+      const settings = await updateAppSettings({ notificationsEnabled: false });
+      setNotificationsEnabled(settings.notificationsEnabled);
+      Alert.alert("Notifications désactivées", "Les rappels DYNO ne seront plus demandés par l'application.");
+      return;
+    }
+
+    const token = await registerForPushNotificationsAsync();
+    if (!token) {
+      Alert.alert("Permission nécessaire", "Autorise les notifications DYNO dans les réglages Android.");
+      return;
+    }
+    const settings = await updateAppSettings({ notificationsEnabled: true });
+    setNotificationsEnabled(settings.notificationsEnabled);
+    Alert.alert("Notifications activées", "Les notifications DYNO sont autorisées sur ce téléphone.");
+  }
+
+  async function toggleAppearance() {
+    const nextMode: AppearanceMode = appearance === "gold" ? "dark" : "gold";
+    const settings = await updateAppSettings({ appearance: nextMode });
+    setAppearance(settings.appearance);
+  }
+
+  async function checkUpdate() {
+    setCheckingUpdate(true);
+    try {
+      const info = await checkForAppUpdate();
+      setUpdateInfo(info);
+      if (!info.updateAvailable) Alert.alert("DYNO est à jour", `Version installée : ${info.installedVersion}`);
+    } catch (error) {
+      Alert.alert("Mise à jour", error instanceof Error ? error.message : "Vérification impossible.");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }
 
   function confirmLogout() {
     Alert.alert("Se déconnecter", "Tu devras te reconnecter pour accéder à l'équipe.", [
       { text: "Annuler", style: "cancel" },
-      {
-        text: "Se déconnecter",
-        style: "destructive",
-        onPress: () => {
-          void logout().then(() => router.replace("/(auth)/login"));
-        },
-      },
+      { text: "Se déconnecter", style: "destructive", onPress: () => void logout().then(() => router.replace("/(auth)/login")) },
     ]);
   }
 
-  const displayName = displayNameFromEmail(session?.email);
-
   return (
     <SafeAreaView style={styles.container}>
-      <ImageBackground source={marbleSource} style={styles.background} imageStyle={styles.backgroundImage}>
-        <View style={styles.overlay} />
+      <ImageBackground source={marbleSource} style={styles.background} imageStyle={[styles.backgroundImage, appearance === "dark" && styles.backgroundDark]}>
+        <View style={[styles.overlay, appearance === "dark" && styles.overlayDark]} />
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
           <Text style={styles.title}>Profil</Text>
@@ -87,13 +125,9 @@ export default function ProfileScreen() {
           <View style={styles.profileCard}>
             <Image source={logoSource} style={styles.avatar} />
             <View style={styles.profileInfo}>
-              <Text style={styles.name}>{displayName}</Text>
-              <Text style={styles.role}>Compte DYNO</Text>
+              <Text style={styles.name}>{displayNameFromEmail(session?.email)}</Text>
               <Text style={styles.email} numberOfLines={1}>{session?.email ?? "Session en cours de chargement"}</Text>
-              <View style={styles.onlineRow}>
-                <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>Connecté</Text>
-              </View>
+              <View style={styles.onlineRow}><View style={styles.onlineDot} /><Text style={styles.onlineText}>Connecté automatiquement</Text></View>
             </View>
             <Ionicons name="diamond" size={22} color={Theme.colors.goldLight} />
           </View>
@@ -108,11 +142,23 @@ export default function ProfileScreen() {
 
           <Text style={styles.sectionLabel}>RÉGLAGES</Text>
           <View style={styles.settingsCard}>
-            <Setting icon="notifications-outline" label="Notifications" value="À configurer" />
+            <Setting icon="notifications-outline" label="Notifications" value={notificationsEnabled ? "Activées" : "Désactivées"} onPress={() => void toggleNotifications()} />
             <View style={styles.separator} />
-            <Setting icon="color-palette-outline" label="Apparence" value="DYNO Or" />
-            <View style={styles.separator} />
-            <Setting icon="shield-checkmark-outline" label="Rôle" value="Non attribué" />
+            <Setting icon="color-palette-outline" label="Apparence" value={appearance === "gold" ? "DYNO Or" : "Sombre"} onPress={() => void toggleAppearance()} />
+          </View>
+
+          <Text style={styles.sectionLabel}>MISE À JOUR</Text>
+          <View style={styles.updateCard}>
+            <View style={styles.updateHeader}>
+              <Ionicons name="cloud-download-outline" size={24} color={Theme.colors.goldLight} />
+              <View style={styles.updateText}>
+                <Text style={styles.updateTitle}>Version installée {getInstalledVersion()}</Text>
+                <Text style={styles.updateSubtitle}>{updateInfo?.updateAvailable ? `Version ${updateInfo.latestVersion} disponible` : "Vérifie les Releases GitHub DYNO."}</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.updateButton} onPress={() => updateInfo?.updateAvailable ? void openAppUpdate(updateInfo) : void checkUpdate()}>
+              <Text style={styles.updateButtonText}>{updateInfo?.updateAvailable ? "TÉLÉCHARGER LA MISE À JOUR" : checkingUpdate ? "VÉRIFICATION..." : "RECHERCHER UNE MISE À JOUR"}</Text>
+            </TouchableOpacity>
           </View>
 
           <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={confirmLogout}>
@@ -126,57 +172,19 @@ export default function ProfileScreen() {
 }
 
 function Stat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
-  return (
-    <View style={styles.statCard}>
-      <Ionicons name={icon} size={22} color={Theme.colors.goldLight} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
+  return <View style={styles.statCard}><Ionicons name={icon} size={22} color={Theme.colors.goldLight} /><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
 }
 
-function Setting({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
-  return (
-    <TouchableOpacity style={styles.settingRow} activeOpacity={0.75}>
-      <View style={styles.settingIcon}>
-        <Ionicons name={icon} size={20} color={Theme.colors.goldLight} />
-      </View>
-      <Text style={styles.settingLabel}>{label}</Text>
-      <Text style={styles.settingValue}>{value}</Text>
-      <Ionicons name="chevron-forward" size={18} color="#8C8C8C" />
-    </TouchableOpacity>
-  );
+function Setting({ icon, label, value, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; onPress: () => void }) {
+  return <TouchableOpacity style={styles.settingRow} activeOpacity={0.75} onPress={onPress}><View style={styles.settingIcon}><Ionicons name={icon} size={20} color={Theme.colors.goldLight} /></View><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingValue}>{value}</Text><Ionicons name="chevron-forward" size={18} color="#8C8C8C" /></TouchableOpacity>;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" },
-  background: { flex: 1 },
-  backgroundImage: { opacity: 0.6 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.58)" },
-  content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 130 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
-  title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 },
-  subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 22, lineHeight: 20 },
-  profileCard: { flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 24, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.4)" },
-  avatar: { width: 68, height: 68, borderRadius: 20, marginRight: 14 },
-  profileInfo: { flex: 1 },
-  name: { color: "#fff", fontSize: 22, fontWeight: "900" },
-  role: { color: Theme.colors.goldLight, marginTop: 4, fontWeight: "700" },
-  email: { color: "#BEBEBE", fontSize: 10, marginTop: 4, maxWidth: 210 },
-  onlineRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4AD45E", marginRight: 6 },
-  onlineText: { color: "#BEBEBE", fontSize: 11 },
-  sectionLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1.3, marginTop: 24, marginBottom: 10 },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  statCard: { width: "48.4%", minHeight: 125, borderRadius: 21, alignItems: "center", justifyContent: "center", marginBottom: 12, backgroundColor: "rgba(8,8,8,0.74)", borderWidth: 1, borderColor: "rgba(224,184,67,0.3)" },
-  statValue: { color: "#fff", fontSize: 27, fontWeight: "900", marginTop: 8 },
-  statLabel: { color: "#CFCFCF", fontSize: 11, marginTop: 3 },
-  settingsCard: { borderRadius: 22, paddingHorizontal: 14, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.34)" },
-  settingRow: { minHeight: 64, flexDirection: "row", alignItems: "center" },
-  settingIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(224,184,67,0.09)", marginRight: 11 },
-  settingLabel: { flex: 1, color: "#fff", fontWeight: "800" },
-  settingValue: { color: "#AFAFAF", fontSize: 11, marginRight: 7 },
-  separator: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginLeft: 49 },
-  logoutButton: { minHeight: 54, borderRadius: 18, marginTop: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(130,20,20,0.16)", borderWidth: 1, borderColor: "rgba(255,100,100,0.28)" },
-  logoutText: { color: "#FF8585", fontWeight: "900" },
+  container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.6 }, backgroundDark: { opacity: 0.18 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.58)" }, overlayDark: { backgroundColor: "rgba(0,0,0,0.82)" }, content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 130 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 22, lineHeight: 20 },
+  profileCard: { flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 24, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.4)" }, avatar: { width: 68, height: 68, borderRadius: 20, marginRight: 14 }, profileInfo: { flex: 1 }, name: { color: "#fff", fontSize: 22, fontWeight: "900" }, email: { color: Theme.colors.goldLight, fontSize: 11, marginTop: 5, maxWidth: 210 }, onlineRow: { flexDirection: "row", alignItems: "center", marginTop: 8 }, onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4AD45E", marginRight: 6 }, onlineText: { color: "#BEBEBE", fontSize: 11 },
+  sectionLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1.3, marginTop: 24, marginBottom: 10 }, statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }, statCard: { width: "48.4%", minHeight: 125, borderRadius: 21, alignItems: "center", justifyContent: "center", marginBottom: 12, backgroundColor: "rgba(8,8,8,0.74)", borderWidth: 1, borderColor: "rgba(224,184,67,0.3)" }, statValue: { color: "#fff", fontSize: 27, fontWeight: "900", marginTop: 8 }, statLabel: { color: "#CFCFCF", fontSize: 11, marginTop: 3 },
+  settingsCard: { borderRadius: 22, paddingHorizontal: 14, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.34)" }, settingRow: { minHeight: 64, flexDirection: "row", alignItems: "center" }, settingIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(224,184,67,0.09)", marginRight: 11 }, settingLabel: { flex: 1, color: "#fff", fontWeight: "800" }, settingValue: { color: "#AFAFAF", fontSize: 11, marginRight: 7 }, separator: { height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginLeft: 49 },
+  updateCard: { padding: 17, borderRadius: 22, backgroundColor: "rgba(8,8,8,0.76)", borderWidth: 1, borderColor: "rgba(224,184,67,0.34)" }, updateHeader: { flexDirection: "row", alignItems: "center" }, updateText: { flex: 1, marginLeft: 12 }, updateTitle: { color: "#fff", fontWeight: "900" }, updateSubtitle: { color: "#AFAFAF", fontSize: 11, marginTop: 4 }, updateButton: { minHeight: 46, marginTop: 15, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, updateButtonText: { color: "#090909", fontSize: 11, fontWeight: "900" },
+  logoutButton: { minHeight: 54, borderRadius: 18, marginTop: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(130,20,20,0.16)", borderWidth: 1, borderColor: "rgba(255,100,100,0.28)" }, logoutText: { color: "#FF8585", fontWeight: "900" },
 });

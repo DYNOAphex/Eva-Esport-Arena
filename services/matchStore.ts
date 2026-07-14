@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { getStoredSession } from "./authService";
+import { firebaseConfig } from "../firebase/config";
+import { getValidSession } from "./authService";
 
 export type MatchType = "Scrim" | "Division";
 export type MatchArena = "Arène 1" | "Arène 2";
@@ -28,9 +29,23 @@ export type Match = {
   createdBy?: string;
 };
 
-const STORAGE_KEY = "dyno_matches_local_v2";
+type FirestoreValue =
+  | { stringValue: string }
+  | { arrayValue: { values?: FirestoreValue[] } }
+  | { mapValue: { fields?: Record<string, FirestoreValue> } };
+
+type FirestoreDocument = {
+  name: string;
+  fields?: Record<string, FirestoreValue>;
+};
+
+const STORAGE_KEY = "dyno_matches_local_v3";
+const LEGACY_STORAGE_KEY = "dyno_matches_local_v2";
+const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/matches`;
 const listeners = new Set<(matches: Match[]) => void>();
 let latestMatches: Match[] = [];
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let syncInProgress = false;
 
 function sortMatches(matches: Match[]) {
   return [...matches].sort((a, b) => `${a.date}T${a.matchTime}`.localeCompare(`${b.date}T${b.matchTime}`));
@@ -44,19 +59,18 @@ async function persist(matches: Match[]) {
 }
 
 async function readStoredMatches(): Promise<Match[]> {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  const raw = (await AsyncStorage.getItem(STORAGE_KEY)) ?? (await AsyncStorage.getItem(LEGACY_STORAGE_KEY));
   if (!raw) return [];
 
   try {
     return sortMatches(JSON.parse(raw) as Match[]);
   } catch {
-    await AsyncStorage.removeItem(STORAGE_KEY);
     return [];
   }
 }
 
 async function requireUser() {
-  const session = await getStoredSession();
+  const session = await getValidSession();
   if (!session) throw new Error("Tu dois être connecté pour modifier les matchs.");
   return session;
 }
@@ -65,10 +79,129 @@ function playerNameFromEmail(email: string) {
   return email.split("@")[0] || "Joueur DYNO";
 }
 
+function stringValue(value: unknown): FirestoreValue {
+  return { stringValue: String(value ?? "") };
+}
+
+function responseToFirestore(response: PlayerResponse): FirestoreValue {
+  return {
+    mapValue: {
+      fields: {
+        uid: stringValue(response.uid ?? ""),
+        player: stringValue(response.player),
+        status: stringValue(response.status),
+      },
+    },
+  };
+}
+
+function matchToFields(match: Match): Record<string, FirestoreValue> {
+  return {
+    type: stringValue(match.type),
+    opponent: stringValue(match.opponent),
+    date: stringValue(match.date),
+    arrivalTime: stringValue(match.arrivalTime),
+    matchTime: stringValue(match.matchTime),
+    arena: stringValue(match.arena),
+    status: stringValue(match.status),
+    notes: stringValue(match.notes ?? ""),
+    createdAt: stringValue(match.createdAt),
+    createdBy: stringValue(match.createdBy ?? ""),
+    responses: { arrayValue: { values: match.responses.map(responseToFirestore) } },
+  };
+}
+
+function readString(value?: FirestoreValue) {
+  return value && "stringValue" in value ? value.stringValue : "";
+}
+
+function documentToMatch(document: FirestoreDocument): Match {
+  const fields = document.fields ?? {};
+  const responseValues = fields.responses && "arrayValue" in fields.responses ? fields.responses.arrayValue.values ?? [] : [];
+  const responses = responseValues.map((value): PlayerResponse => {
+    const responseFields = "mapValue" in value ? value.mapValue.fields ?? {} : {};
+    const status = readString(responseFields.status);
+    return {
+      uid: readString(responseFields.uid) || undefined,
+      player: readString(responseFields.player) || "Joueur DYNO",
+      status: status === "Disponible" || status === "Indisponible" ? status : "En attente",
+    };
+  });
+
+  const type = readString(fields.type);
+  const arena = readString(fields.arena);
+  const status = readString(fields.status);
+
+  return {
+    id: document.name.split("/").pop() ?? `${Date.now()}`,
+    type: type === "Division" ? "Division" : "Scrim",
+    opponent: readString(fields.opponent) || "Adversaire",
+    date: readString(fields.date),
+    arrivalTime: readString(fields.arrivalTime) || "19:30",
+    matchTime: readString(fields.matchTime) || "20:00",
+    arena: arena === "Arène 2" ? "Arène 2" : "Arène 1",
+    status: status === "Confirmé" || status === "Annulé" ? status : "En attente",
+    notes: readString(fields.notes),
+    createdAt: readString(fields.createdAt) || new Date().toISOString(),
+    createdBy: readString(fields.createdBy) || undefined,
+    responses,
+  };
+}
+
+async function firestoreRequest(url: string, init: RequestInit = {}) {
+  const session = await requireUser();
+  return fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${session.idToken}`,
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
+  });
+}
+
+async function fetchCloudMatches() {
+  const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`);
+  if (!response.ok) throw new Error("Synchronisation Firebase impossible.");
+  const data = (await response.json()) as { documents?: FirestoreDocument[] };
+  return sortMatches((data.documents ?? []).map(documentToMatch));
+}
+
+async function uploadMatch(match: Match) {
+  const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(match.id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ fields: matchToFields(match) }),
+  });
+  if (!response.ok) throw new Error("Enregistrement Firebase impossible.");
+}
+
+async function syncFromCloud() {
+  if (syncInProgress) return latestMatches;
+  syncInProgress = true;
+  try {
+    const cloud = await fetchCloudMatches();
+    const local = await readStoredMatches();
+
+    if (!cloud.length && local.length) {
+      await Promise.all(local.map((match) => uploadMatch(match)));
+      return persist(local);
+    }
+
+    return persist(cloud);
+  } catch {
+    const local = await readStoredMatches();
+    latestMatches = local;
+    return local;
+  } finally {
+    syncInProgress = false;
+  }
+}
+
 export async function getMatches(): Promise<Match[]> {
-  const matches = await readStoredMatches();
-  latestMatches = matches;
-  return matches;
+  const local = await readStoredMatches();
+  latestMatches = local;
+  void syncFromCloud();
+  return local;
 }
 
 export async function createMatch(input: Omit<Match, "id" | "createdAt" | "responses" | "createdBy">) {
@@ -83,42 +216,56 @@ export async function createMatch(input: Omit<Match, "id" | "createdAt" | "respo
   };
 
   await persist([...matches, match]);
+  await uploadMatch(match);
   return match;
 }
 
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {
   const user = await requireUser();
-  const matches = await readStoredMatches();
+  const matches = await fetchCloudMatches().catch(readStoredMatches);
   const player = playerNameFromEmail(user.email);
+  let changed: Match | undefined;
 
   const updated = matches.map((match) => {
     if (match.id !== matchId) return match;
-
     const responses = [...match.responses];
     const existingIndex = responses.findIndex((response) => response.uid === user.localId);
     const response: PlayerResponse = { uid: user.localId, player, status: availability };
-
     if (existingIndex >= 0) responses[existingIndex] = response;
     else responses.push(response);
-
-    return { ...match, responses };
+    changed = { ...match, responses };
+    return changed;
   });
 
   await persist(updated);
+  if (changed) await uploadMatch(changed);
 }
 
 export async function deleteMatch(matchId: string) {
   await requireUser();
   const matches = await readStoredMatches();
   await persist(matches.filter((match) => match.id !== matchId));
+  const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(matchId)}`, { method: "DELETE" });
+  if (!response.ok && response.status !== 404) throw new Error("Suppression Firebase impossible.");
 }
 
 export function subscribeToMatches(listener: (matches: Match[]) => void) {
   listeners.add(listener);
   if (latestMatches.length) listener(latestMatches);
+  void syncFromCloud();
+
+  if (!pollTimer) {
+    pollTimer = setInterval(() => {
+      void syncFromCloud();
+    }, 5000);
+  }
 
   return () => {
     listeners.delete(listener);
+    if (!listeners.size && pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
   };
 }
 

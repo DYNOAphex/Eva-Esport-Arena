@@ -12,8 +12,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-import { auth } from "../firebase/auth";
 import { db } from "../firebase/firestore";
+import { getStoredSession } from "./authService";
 
 export type MatchType = "Scrim" | "Division";
 export type MatchArena = "Arène 1" | "Arène 2";
@@ -47,15 +47,14 @@ const listeners = new Set<(matches: Match[]) => void>();
 let latestMatches: Match[] = [];
 let unsubscribeSnapshot: (() => void) | null = null;
 
-export function getCurrentPlayerName() {
-  const user = auth.currentUser;
-  return user?.displayName?.trim() || user?.email?.split("@")[0] || "Joueur DYNO";
+async function requireUser() {
+  const session = await getStoredSession();
+  if (!session) throw new Error("Tu dois être connecté pour modifier les matchs.");
+  return session;
 }
 
-function requireUser() {
-  const user = auth.currentUser;
-  if (!user) throw new Error("Tu dois être connecté pour modifier les matchs.");
-  return user;
+function playerNameFromEmail(email: string) {
+  return email.split("@")[0] || "Joueur DYNO";
 }
 
 function normalizeMatch(id: string, data: any): Match {
@@ -108,11 +107,11 @@ export async function getMatches(): Promise<Match[]> {
 }
 
 export async function createMatch(input: Omit<Match, "id" | "createdAt" | "responses" | "createdBy">) {
-  const user = requireUser();
+  const user = await requireUser();
   const payload = {
     ...input,
     responses: [] as PlayerResponse[],
-    createdBy: user.uid,
+    createdBy: user.localId,
     createdAt: serverTimestamp(),
   };
   const reference = await addDoc(matchesCollection, payload);
@@ -120,7 +119,7 @@ export async function createMatch(input: Omit<Match, "id" | "createdAt" | "respo
 }
 
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {
-  const user = requireUser();
+  const user = await requireUser();
   const reference = doc(db, "matches", matchId);
 
   await runTransaction(db, async (transaction) => {
@@ -128,9 +127,9 @@ export async function setMatchAvailability(matchId: string, availability: Exclud
     if (!snapshot.exists()) throw new Error("Ce match n'existe plus.");
 
     const responses = Array.isArray(snapshot.data().responses) ? [...snapshot.data().responses] as PlayerResponse[] : [];
-    const player = getCurrentPlayerName();
-    const existingIndex = responses.findIndex((response) => response.uid === user.uid);
-    const response: PlayerResponse = { uid: user.uid, player, status: availability };
+    const player = playerNameFromEmail(user.email);
+    const existingIndex = responses.findIndex((response) => response.uid === user.localId);
+    const response: PlayerResponse = { uid: user.localId, player, status: availability };
 
     if (existingIndex >= 0) responses[existingIndex] = response;
     else responses.push(response);
@@ -140,7 +139,7 @@ export async function setMatchAvailability(matchId: string, availability: Exclud
 }
 
 export async function deleteMatch(matchId: string) {
-  requireUser();
+  await requireUser();
   await deleteDoc(doc(db, "matches", matchId));
 }
 

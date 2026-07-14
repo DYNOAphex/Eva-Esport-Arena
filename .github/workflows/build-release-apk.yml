@@ -109,7 +109,11 @@ jobs:
 
       - name: Configure release signing
         run: |
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/dyno-release.keystore
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 --decode > android/app/dyno-release.keystore
+          if [ ! -s android/app/dyno-release.keystore ]; then
+            echo "Le secret ANDROID_KEYSTORE_BASE64 ne produit aucun fichier keystore."
+            exit 1
+          fi
           node - <<'NODE'
           const fs = require('fs');
           const path = 'android/app/build.gradle';

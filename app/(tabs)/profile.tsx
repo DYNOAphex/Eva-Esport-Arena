@@ -1,12 +1,80 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image, ImageBackground, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { router } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Image,
+  ImageBackground,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import { Theme } from "../../constants/theme";
+import { getStoredSession, logout } from "../../services/authService";
+import { getMatches, subscribeToMatches } from "../../services/matchStore";
+import type { AuthSession } from "../../services/authService";
+import type { Match } from "../../services/matchStore";
 
 const marbleSource = require("../../assets/images/background-marble.jpg");
 const logoSource = require("../../assets/images/logo-dyno.png");
 
+function displayNameFromEmail(email?: string) {
+  if (!email) return "MEMBRE DYNO";
+  return email.split("@")[0].replace(/[._-]+/g, " ").trim().toUpperCase() || "MEMBRE DYNO";
+}
+
 export default function ProfileScreen() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [matches, setMatches] = useState<Match[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    void getStoredSession().then((value) => active && setSession(value));
+    void getMatches().then((items) => active && setMatches(items));
+    const unsubscribe = subscribeToMatches(setMatches);
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const stats = useMemo(() => {
+    const uid = session?.localId;
+    const responses = uid
+      ? matches.flatMap((match) => match.responses.filter((response) => response.uid === uid))
+      : [];
+    const available = responses.filter((response) => response.status === "Disponible").length;
+    const answered = responses.filter((response) => response.status !== "En attente").length;
+    const presenceRate = answered ? Math.round((available / answered) * 100) : 0;
+    const responseRate = matches.length ? Math.round((answered / matches.length) * 100) : 0;
+
+    return {
+      matches: matches.length,
+      confirmed: matches.filter((match) => match.status === "Confirmé").length,
+      presenceRate,
+      responseRate,
+    };
+  }, [matches, session?.localId]);
+
+  function confirmLogout() {
+    Alert.alert("Se déconnecter", "Tu devras te reconnecter pour accéder à l'équipe.", [
+      { text: "Annuler", style: "cancel" },
+      {
+        text: "Se déconnecter",
+        style: "destructive",
+        onPress: () => {
+          void logout().then(() => router.replace("/(auth)/login"));
+        },
+      },
+    ]);
+  }
+
+  const displayName = displayNameFromEmail(session?.email);
+
   return (
     <SafeAreaView style={styles.container}>
       <ImageBackground source={marbleSource} style={styles.background} imageStyle={styles.backgroundImage}>
@@ -19,34 +87,35 @@ export default function ProfileScreen() {
           <View style={styles.profileCard}>
             <Image source={logoSource} style={styles.avatar} />
             <View style={styles.profileInfo}>
-              <Text style={styles.name}>DYNO</Text>
-              <Text style={styles.role}>Fondateur • Coach</Text>
+              <Text style={styles.name}>{displayName}</Text>
+              <Text style={styles.role}>Compte DYNO</Text>
+              <Text style={styles.email} numberOfLines={1}>{session?.email ?? "Session en cours de chargement"}</Text>
               <View style={styles.onlineRow}>
                 <View style={styles.onlineDot} />
-                <Text style={styles.onlineText}>En ligne</Text>
+                <Text style={styles.onlineText}>Connecté</Text>
               </View>
             </View>
             <Ionicons name="diamond" size={22} color={Theme.colors.goldLight} />
           </View>
 
-          <Text style={styles.sectionLabel}>STATISTIQUES</Text>
+          <Text style={styles.sectionLabel}>STATISTIQUES RÉELLES</Text>
           <View style={styles.statsGrid}>
-            <Stat icon="calendar" value="12" label="Matchs" />
-            <Stat icon="trophy" value="8" label="Victoires" />
-            <Stat icon="checkmark-circle" value="98%" label="Présence" />
-            <Stat icon="trending-up" value="67%" label="Winrate" />
+            <Stat icon="calendar" value={String(stats.matches)} label="Matchs" />
+            <Stat icon="shield-checkmark" value={String(stats.confirmed)} label="Confirmés" />
+            <Stat icon="checkmark-circle" value={`${stats.presenceRate}%`} label="Présence" />
+            <Stat icon="chatbox-ellipses" value={`${stats.responseRate}%`} label="Réponses" />
           </View>
 
           <Text style={styles.sectionLabel}>RÉGLAGES</Text>
           <View style={styles.settingsCard}>
-            <Setting icon="notifications-outline" label="Notifications" value="Activées" />
+            <Setting icon="notifications-outline" label="Notifications" value="À configurer" />
             <View style={styles.separator} />
             <Setting icon="color-palette-outline" label="Apparence" value="DYNO Or" />
             <View style={styles.separator} />
-            <Setting icon="shield-checkmark-outline" label="Rôle" value="Coach" />
+            <Setting icon="shield-checkmark-outline" label="Rôle" value="Non attribué" />
           </View>
 
-          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={confirmLogout}>
             <Ionicons name="log-out-outline" size={20} color="#FF8585" />
             <Text style={styles.logoutText}>Se déconnecter</Text>
           </TouchableOpacity>
@@ -93,6 +162,7 @@ const styles = StyleSheet.create({
   profileInfo: { flex: 1 },
   name: { color: "#fff", fontSize: 22, fontWeight: "900" },
   role: { color: Theme.colors.goldLight, marginTop: 4, fontWeight: "700" },
+  email: { color: "#BEBEBE", fontSize: 10, marginTop: 4, maxWidth: 210 },
   onlineRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
   onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4AD45E", marginRight: 6 },
   onlineText: { color: "#BEBEBE", fontSize: 11 },

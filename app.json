@@ -11,6 +11,12 @@
       "expo-router",
       "expo-updates",
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Autoriser DYNO Esport Manager à ajouter les matchs à votre calendrier."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#D4AF37",
@@ -25,7 +31,11 @@
       "url": "https://u.expo.dev/fc6db2ba-e1c7-4ceb-b720-f97787f7425c"
     },
     "android": {
-      "package": "com.dynoaphex.evaesportarena"
+      "package": "com.dynoaphex.evaesportarena",
+      "permissions": [
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
+      ]
     },
     "ios": {
       "bundleIdentifier": "com.dynoaphex.evaesportarena"

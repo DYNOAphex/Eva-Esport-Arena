@@ -1,4 +1,4 @@
-name: Build Android Preview APK
+name: Build Android APK (GitHub)
 
 on:
   workflow_dispatch:
@@ -11,82 +11,115 @@ on:
       - "constants/**"
       - "firebase/**"
       - "services/**"
+      - "assets/**"
       - "app.json"
-      - "eas.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/android-preview.yml"
 
 concurrency:
-  group: android-preview-${{ github.ref }}
+  group: android-github-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: Create installable APK
+    name: Create signed Android APK
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
-    env:
-      CI: "1"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify runner Node.js
-        run: node --version && npm --version
-
-      - name: Install all dependencies
-        run: npm install --include=dev
-
-      - name: Verify Expo dependency health
-        run: npx expo-doctor
-
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          node-version: 20
+          cache: npm
 
-      - name: Verify linked Expo project
-        run: eas project:info --non-interactive
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
 
-      - name: Start Android preview build
-        id: eas-build
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --clean --non-interactive
+
+      - name: Restore Android signing keystore
         env:
-          NODE_ENV: production
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          eas build \
-            --platform android \
-            --profile preview \
-            --non-interactive \
-            --no-wait \
-            --json > eas-build.json
+          test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Secret ANDROID_KEYSTORE_BASE64 manquant" && exit 1)
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/dyno-release.jks
 
-          cat eas-build.json
-
-          BUILD_URL=$(jq -r '.[0].buildDetailsPageUrl // empty' eas-build.json)
-          BUILD_ID=$(jq -r '.[0].id // empty' eas-build.json)
-
-          echo "build_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
-          echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Publish build link in summary
+      - name: Configure release signing
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          echo "## EVA Esport Arena — Android Preview" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "La build Android a été envoyée à Expo EAS." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || (echo "Secret ANDROID_KEYSTORE_PASSWORD manquant" && exit 1)
+          test -n "$ANDROID_KEY_ALIAS" || (echo "Secret ANDROID_KEY_ALIAS manquant" && exit 1)
+          test -n "$ANDROID_KEY_PASSWORD" || (echo "Secret ANDROID_KEY_PASSWORD manquant" && exit 1)
 
-          if [ -n "${{ steps.eas-build.outputs.build_url }}" ]; then
-            echo "[Ouvrir la page de build et installer l’APK](${{ steps.eas-build.outputs.build_url }})" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Ouvre le tableau de bord Expo pour suivre la build." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          cat >> android/gradle.properties <<EOF
+          DYNO_UPLOAD_STORE_FILE=dyno-release.jks
+          DYNO_UPLOAD_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD
+          DYNO_UPLOAD_KEY_ALIAS=$ANDROID_KEY_ALIAS
+          DYNO_UPLOAD_KEY_PASSWORD=$ANDROID_KEY_PASSWORD
+          EOF
 
-          if [ -n "${{ steps.eas-build.outputs.build_id }}" ]; then
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Build ID : \`${{ steps.eas-build.outputs.build_id }}\`" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("android/app/build.gradle")
+          text = path.read_text()
+
+          marker = "    buildTypes {"
+          signing = '''    signingConfigs {
+              release {
+                  storeFile file(DYNO_UPLOAD_STORE_FILE)
+                  storePassword DYNO_UPLOAD_STORE_PASSWORD
+                  keyAlias DYNO_UPLOAD_KEY_ALIAS
+                  keyPassword DYNO_UPLOAD_KEY_PASSWORD
+              }
+          }
+          '''
+
+          if "DYNO_UPLOAD_STORE_FILE" not in text:
+              text = text.replace(marker, signing + marker, 1)
+
+          text = text.replace(
+              "signingConfig signingConfigs.debug",
+              "signingConfig signingConfigs.release",
+              1,
+          )
+
+          path.write_text(text)
+          PY
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk DYNO-Esport-Manager.apk
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: DYNO-Esport-Manager-APK
+          path: DYNO-Esport-Manager.apk
+          retention-days: 30
+
+      - name: Publish instructions
+        run: |
+          echo "## APK DYNO générée gratuitement sur GitHub" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Télécharge l’artifact **DYNO-Esport-Manager-APK** en bas de cette exécution." >> "$GITHUB_STEP_SUMMARY"

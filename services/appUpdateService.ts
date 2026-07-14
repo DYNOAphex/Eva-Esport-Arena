@@ -10,12 +10,14 @@ export type AppUpdateInfo = {
   downloadUrl?: string;
   releaseUrl?: string;
   publishedAt?: string;
+  releaseNotes: string[];
 };
 
 type GitHubRelease = {
   tag_name?: string;
   html_url?: string;
   published_at?: string;
+  body?: string;
   assets?: Array<{ name?: string; browser_download_url?: string }>;
 };
 
@@ -30,7 +32,7 @@ export async function checkForAppUpdate(): Promise<AppUpdateInfo> {
   });
 
   if (response.status === 404) {
-    return { installedVersion, latestVersion: installedVersion, updateAvailable: false };
+    return { installedVersion, latestVersion: installedVersion, updateAvailable: false, releaseNotes: [] };
   }
   if (!response.ok) throw new Error("Impossible de vérifier les mises à jour GitHub.");
 
@@ -45,6 +47,7 @@ export async function checkForAppUpdate(): Promise<AppUpdateInfo> {
     downloadUrl: apk?.browser_download_url,
     releaseUrl: release.html_url,
     publishedAt: release.published_at,
+    releaseNotes: parseReleaseNotes(release.body),
   };
 }
 
@@ -52,6 +55,17 @@ export async function openAppUpdate(info: AppUpdateInfo) {
   const url = info.downloadUrl ?? info.releaseUrl;
   if (!url) throw new Error("Aucun fichier APK n'est disponible dans la dernière Release GitHub.");
   await Linking.openURL(url);
+}
+
+function parseReleaseNotes(body?: string) {
+  if (!body) return [];
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /^[-*]\s+/.test(line))
+    .map((line) => line.replace(/^[-*]\s+/, "").replace(/\[([^\]]+)\]\([^\)]+\)/g, "$1"))
+    .filter(Boolean)
+    .slice(0, 6);
 }
 
 function normalizeVersion(value: string) {

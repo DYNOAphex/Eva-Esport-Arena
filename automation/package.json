@@ -1,0 +1,11 @@
+{
+  "name": "dyno-discord-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "notify": "node notify-new-matches.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

@@ -1,8 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
+import { canCreateScrim } from "../../services/accessControl";
+import { getStoredSession } from "../../services/authService";
+import { getMatches, subscribeToMatches } from "../../services/matchStore";
+import type { AuthSession } from "../../services/authService";
+import type { Match } from "../../services/matchStore";
 
 function CenterAction({ focused }: { focused: boolean }) {
   return (
@@ -15,6 +21,22 @@ function CenterAction({ focused }: { focused: boolean }) {
 }
 
 export default function TabsLayout() {
+  const [allowedToCreate, setAllowedToCreate] = useState(false);
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [matches, setMatches] = useState<Match[]>([]);
+
+  useEffect(() => {
+    void canCreateScrim().then(setAllowedToCreate);
+    void getStoredSession().then(setSession);
+    void getMatches().then(setMatches);
+    return subscribeToMatches(setMatches);
+  }, []);
+
+  const pendingCount = useMemo(() => {
+    if (!session) return 0;
+    return matches.filter((match) => match.status !== "Annulé" && !match.responses.some((response) => response.uid === session.localId && response.status !== "En attente")).length;
+  }, [matches, session]);
+
   return (
     <Tabs
       initialRouteName="home"
@@ -48,8 +70,8 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={focused ? size + 2 : size} /> }} />
       <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="planning" options={{ title: "Agenda", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} color={color} size={focused ? size + 2 : size} /> }} />
-      <Tabs.Screen name="scrims" options={{ title: "Scrims", tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 10 }, tabBarIcon: ({ focused }) => <CenterAction focused={focused} /> }} />
+      <Tabs.Screen name="planning" options={{ title: "Agenda", tabBarBadge: pendingCount || undefined, tabBarBadgeStyle: { backgroundColor: "#E84B4B", color: "#fff", fontSize: 9 }, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} color={color} size={focused ? size + 2 : size} /> }} />
+      <Tabs.Screen name="scrims" options={{ href: allowedToCreate ? "/scrims" : null, title: "Scrims", tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 10 }, tabBarIcon: ({ focused }) => <CenterAction focused={focused} /> }} />
       <Tabs.Screen name="team" options={{ title: "Équipe", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "people" : "people-outline"} color={color} size={focused ? size + 2 : size} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Plus", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "settings" : "settings-outline"} color={color} size={focused ? size + 2 : size} /> }} />
     </Tabs>

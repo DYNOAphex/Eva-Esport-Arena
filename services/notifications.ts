@@ -78,6 +78,19 @@ export async function scheduleMatchNotification({
   opponent: string;
   matchDate: Date;
 }) {
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status === "granted") {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "🟡 Nouveau match DYNO",
+        body: `Un match contre ${opponent} vient d'être créé.`,
+        sound: "default",
+        data: { type: "match-created", opponent },
+      },
+      trigger: null,
+    });
+  }
+
   const reminderDate = new Date(matchDate.getTime() - 30 * 60 * 1000);
   if (reminderDate.getTime() <= Date.now()) return null;
 

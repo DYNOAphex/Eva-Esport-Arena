@@ -5,6 +5,7 @@ import {
   Alert,
   Image,
   ImageBackground,
+  Linking,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -78,13 +79,26 @@ export default function ProfileScreen() {
     }
 
     const token = await registerForPushNotificationsAsync();
-    if (!token) {
-      Alert.alert("Permission nécessaire", "Autorise les notifications DYNO dans les réglages Android.");
+    if (token) {
+      const settings = await updateAppSettings({ notificationsEnabled: true });
+      setNotificationsEnabled(settings.notificationsEnabled);
+      Alert.alert("Notifications activées", "Les notifications DYNO sont autorisées sur ce téléphone.");
       return;
     }
-    const settings = await updateAppSettings({ notificationsEnabled: true });
-    setNotificationsEnabled(settings.notificationsEnabled);
-    Alert.alert("Notifications activées", "Les notifications DYNO sont autorisées sur ce téléphone.");
+
+    Alert.alert(
+      "Autoriser les notifications",
+      "Android bloque actuellement les notifications DYNO. Ouvre les réglages de l'application et active Notifications.",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Ouvrir les réglages",
+          onPress: () => {
+            void Linking.openSettings();
+          },
+        },
+      ],
+    );
   }
 
   async function toggleAppearance() {

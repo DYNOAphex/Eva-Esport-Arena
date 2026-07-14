@@ -1,0 +1,116 @@
+name: Build and release DYNO APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version à publier (ex. 1.0.1). Laisser vide pour incrémenter le patch."
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths-ignore:
+      - ".github/workflows/discord-new-match.yml"
+      - "automation/**"
+      - "README.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dyno-android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install --global eas-cli
+
+      - name: Check Expo token
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Le secret GitHub EXPO_TOKEN est manquant."
+            exit 1
+          fi
+
+      - name: Calculate release version
+        id: version
+        shell: bash
+        run: |
+          REQUESTED="${{ inputs.version }}"
+          if [ -n "$REQUESTED" ]; then
+            VERSION="${REQUESTED#v}"
+          else
+            CURRENT="$(gh release view --json tagName --jq '.tagName' 2>/dev/null || echo 'v0.1.0')"
+            CURRENT="${CURRENT#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+            VERSION="${MAJOR:-0}.${MINOR:-1}.$(( ${PATCH:-0} + 1 ))"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version invalide: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "apk=DYNO-Esport-Manager-v$VERSION.apk" >> "$GITHUB_OUTPUT"
+
+      - name: Apply version to app configuration
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const version = process.env.VERSION;
+          for (const file of ['app.json', 'package.json']) {
+            const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+            if (file === 'app.json') data.expo.version = version;
+            else data.version = version;
+            fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n');
+          }
+          NODE
+
+      - name: Build Android APK with EAS
+        run: eas build --platform android --profile preview --non-interactive --wait --json > eas-build.json
+
+      - name: Download APK
+        env:
+          APK_NAME: ${{ steps.version.outputs.apk }}
+        run: |
+          BUILD_URL="$(node -e "const d=require('./eas-build.json'); const b=Array.isArray(d)?d[0]:d; process.stdout.write(b.artifacts?.buildUrl || b.artifacts?.applicationArchiveUrl || '')")"
+          if [ -z "$BUILD_URL" ]; then
+            cat eas-build.json
+            echo "URL de téléchargement EAS introuvable."
+            exit 1
+          fi
+          curl --fail --location "$BUILD_URL" --output "$APK_NAME"
+
+      - name: Create GitHub Release
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          APK_NAME: ${{ steps.version.outputs.apk }}
+        run: |
+          gh release create "$TAG" "$APK_NAME" \
+            --title "DYNO Esport Manager v$VERSION" \
+            --generate-notes \
+            --latest

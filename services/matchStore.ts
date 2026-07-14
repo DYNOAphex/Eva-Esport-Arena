@@ -27,10 +27,13 @@ export type Match = {
   responses: PlayerResponse[];
   createdAt: string;
   createdBy?: string;
+  discordNotificationPending?: boolean;
+  discordNotifiedAt?: string;
 };
 
 type FirestoreValue =
   | { stringValue: string }
+  | { booleanValue: boolean }
   | { arrayValue: { values?: FirestoreValue[] } }
   | { mapValue: { fields?: Record<string, FirestoreValue> } };
 
@@ -107,12 +110,18 @@ function matchToFields(match: Match): Record<string, FirestoreValue> {
     notes: stringValue(match.notes ?? ""),
     createdAt: stringValue(match.createdAt),
     createdBy: stringValue(match.createdBy ?? ""),
+    discordNotificationPending: { booleanValue: match.discordNotificationPending === true },
+    discordNotifiedAt: stringValue(match.discordNotifiedAt ?? ""),
     responses: { arrayValue: { values: match.responses.map(responseToFirestore) } },
   };
 }
 
 function readString(value?: FirestoreValue) {
   return value && "stringValue" in value ? value.stringValue : "";
+}
+
+function readBoolean(value?: FirestoreValue) {
+  return Boolean(value && "booleanValue" in value && value.booleanValue);
 }
 
 function documentToMatch(document: FirestoreDocument): Match {
@@ -144,6 +153,8 @@ function documentToMatch(document: FirestoreDocument): Match {
     notes: readString(fields.notes),
     createdAt: readString(fields.createdAt) || new Date().toISOString(),
     createdBy: readString(fields.createdBy) || undefined,
+    discordNotificationPending: readBoolean(fields.discordNotificationPending),
+    discordNotifiedAt: readString(fields.discordNotifiedAt) || undefined,
     responses,
   };
 }
@@ -204,7 +215,9 @@ export async function getMatches(): Promise<Match[]> {
   return local;
 }
 
-export async function createMatch(input: Omit<Match, "id" | "createdAt" | "responses" | "createdBy">) {
+export async function createMatch(
+  input: Omit<Match, "id" | "createdAt" | "responses" | "createdBy" | "discordNotificationPending" | "discordNotifiedAt">,
+) {
   const user = await requireUser();
   const matches = await readStoredMatches();
   const match: Match = {
@@ -212,6 +225,7 @@ export async function createMatch(input: Omit<Match, "id" | "createdAt" | "respo
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),
     createdBy: user.localId,
+    discordNotificationPending: true,
     responses: [],
   };
 

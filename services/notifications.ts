@@ -30,17 +30,45 @@ export async function registerForPushNotificationsAsync() {
     finalStatus = requestedPermissions.status;
   }
 
-  if (finalStatus !== "granted") {
-    return null;
-  }
+  if (finalStatus !== "granted") return null;
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  if (!projectId) {
-    return null;
-  }
+  if (!projectId) return null;
 
   const token = await Notifications.getExpoPushTokenAsync({ projectId });
   return token.data;
+}
+
+export async function notifyMatchCreated({
+  type,
+  opponent,
+  date,
+  arrivalTime,
+  matchTime,
+  arena,
+}: {
+  type: string;
+  opponent: string;
+  date: string;
+  arrivalTime: string;
+  matchTime: string;
+  arena: string;
+}) {
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== "granted") {
+    const requested = await Notifications.requestPermissionsAsync();
+    if (requested.status !== "granted") return null;
+  }
+
+  return Notifications.scheduleNotificationAsync({
+    content: {
+      title: `🟡 Nouveau ${type.toLowerCase()} DYNO`,
+      body: `VS ${opponent} • ${formatDate(date)} • RDV ${arrivalTime} • Match ${matchTime} • ${arena}`,
+      sound: "default",
+      data: { type: "match-created", opponent, date, arrivalTime, matchTime, arena },
+    },
+    trigger: null,
+  });
 }
 
 export async function scheduleMatchNotification({
@@ -51,20 +79,14 @@ export async function scheduleMatchNotification({
   matchDate: Date;
 }) {
   const reminderDate = new Date(matchDate.getTime() - 30 * 60 * 1000);
-
-  if (reminderDate.getTime() <= Date.now()) {
-    return null;
-  }
+  if (reminderDate.getTime() <= Date.now()) return null;
 
   return Notifications.scheduleNotificationAsync({
     content: {
       title: "⚔️ Match DYNO dans 30 minutes",
       body: `Prépare-toi pour le match contre ${opponent}.`,
       sound: "default",
-      data: {
-        type: "match-reminder",
-        opponent,
-      },
+      data: { type: "match-reminder", opponent },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -72,4 +94,10 @@ export async function scheduleMatchNotification({
       channelId: "matches",
     },
   });
+}
+
+function formatDate(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 }

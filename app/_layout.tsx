@@ -4,11 +4,15 @@ import { useEffect } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { Theme } from "../constants/theme";
+import { getAppSettings } from "../services/appSettings";
 import { registerForPushNotificationsAsync } from "../services/notifications";
 
 export default function RootLayout() {
   useEffect(() => {
-    registerForPushNotificationsAsync().catch(() => {
+    void getAppSettings().then((settings) => {
+      if (!settings.notificationsEnabled) return;
+      return registerForPushNotificationsAsync();
+    }).catch(() => {
       // The app remains usable if notification permission is refused or unavailable.
     });
   }, []);

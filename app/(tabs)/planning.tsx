@@ -6,8 +6,10 @@ import { Alert, ImageBackground, Modal, SafeAreaView, ScrollView, Share, StyleSh
 
 import { Theme } from "../../constants/theme";
 import { getScrimPermissions } from "../../services/accessControl";
+import { getAppSettings } from "../../services/appSettings";
 import { getStoredSession } from "../../services/authService";
 import { deleteMatch, duplicateMatch, getMatch, getMatches, setMatchAvailability, subscribeToMatches, updateMatch } from "../../services/matchStore";
+import { getRoster, RosterPlayer, subscribeToRoster } from "../../services/rosterStore";
 import type { AuthSession } from "../../services/authService";
 import type { Availability, Match } from "../../services/matchStore";
 
@@ -16,8 +18,10 @@ type AgendaFilter = "upcoming" | "history" | "cancelled";
 
 export default function PlanningScreen() {
   const [matches, setMatches] = useState<Match[]>([]);
+  const [roster, setRoster] = useState<RosterPlayer[]>([]);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [canManage, setCanManage] = useState(false);
+  const [confirmationThreshold, setConfirmationThreshold] = useState(4);
   const [savingMatchId, setSavingMatchId] = useState<string | null>(null);
   const [details, setDetails] = useState<Match | null>(null);
   const [filter, setFilter] = useState<AgendaFilter>("upcoming");
@@ -25,9 +29,13 @@ export default function PlanningScreen() {
   const loadMatches = useCallback(async () => setMatches(await getMatches()), []);
   useEffect(() => {
     void loadMatches();
+    void getRoster().then(setRoster);
     void getStoredSession().then(setSession);
     void getScrimPermissions().then((permissions) => setCanManage(permissions.canManage));
-    return subscribeToMatches(setMatches);
+    void getAppSettings().then((settings) => setConfirmationThreshold(settings.confirmationThreshold));
+    const unsubscribeMatches = subscribeToMatches(setMatches);
+    const unsubscribeRoster = subscribeToRoster(setRoster);
+    return () => { unsubscribeMatches(); unsubscribeRoster(); };
   }, [loadMatches]);
 
   const filteredMatches = useMemo(() => {
@@ -40,23 +48,36 @@ export default function PlanningScreen() {
     });
   }, [matches, filter]);
 
+  function responseForPlayer(match: Match, player: RosterPlayer) {
+    return match.responses.find((response) => response.uid === player.accountUid || response.player.trim().toLowerCase() === player.nickname.trim().toLowerCase());
+  }
+
+  function getResponseSummary(match: Match) {
+    const available = match.responses.filter((item) => item.status === "Disponible").length;
+    const unavailable = match.responses.filter((item) => item.status === "Indisponible").length;
+    const pendingPlayers = roster.filter((player) => !responseForPlayer(match, player) || responseForPlayer(match, player)?.status === "En attente");
+    return { available, unavailable, pendingPlayers };
+  }
+
   async function answer(matchId: string, availability: Exclude<Availability, "En attente">) {
     try {
       setSavingMatchId(matchId);
       await setMatchAvailability(matchId, availability);
       const updated = await getMatch(matchId);
       const available = updated?.responses.filter((response) => response.status === "Disponible").length ?? 0;
-      if (updated && updated.status === "En attente" && available >= 4) {
+      if (updated && updated.status === "En attente" && available >= confirmationThreshold) {
         await updateMatch(matchId, { status: "Confirmé" });
-        Alert.alert("Scrim confirmé", "Au moins 4 joueurs sont disponibles. Le scrim passe automatiquement en Confirmé.");
+        Alert.alert("Scrim confirmé", `${available} joueurs sont disponibles. Le seuil configuré est de ${confirmationThreshold}.`);
       }
-    } catch { Alert.alert("Disponibilité", "Ta réponse n'a pas pu être enregistrée."); }
-    finally { setSavingMatchId(null); }
+    } catch {
+      Alert.alert("Disponibilité", "Ta réponse n'a pas pu être enregistrée.");
+    } finally {
+      setSavingMatchId(null);
+    }
   }
 
   async function shareMatch(match: Match) {
-    const available = match.responses.filter((item) => item.status === "Disponible").length;
-    const unavailable = match.responses.filter((item) => item.status === "Indisponible").length;
+    const summary = getResponseSummary(match);
     await Share.share({
       title: `DYNO vs ${match.opponent}`,
       message: [
@@ -64,7 +85,8 @@ export default function PlanningScreen() {
         `📅 ${formatDate(match.date)}`,
         `🕒 Rendez-vous ${match.arrivalTime} • Match ${match.matchTime}`,
         `📍 ${match.arena}`,
-        `✅ ${available} disponible(s) • ❌ ${unavailable} indisponible(s)`,
+        `✅ ${summary.available} disponible(s) • ❌ ${summary.unavailable} indisponible(s)`,
+        summary.pendingPlayers.length ? `⏳ Sans réponse : ${summary.pendingPlayers.map((player) => player.nickname).join(", ")}` : "✅ Tout le monde a répondu",
         `Statut : ${match.status}`,
         match.notes ? `📝 ${match.notes}` : "",
       ].filter(Boolean).join("\n"),
@@ -78,7 +100,9 @@ export default function PlanningScreen() {
       const startDate = new Date(`${match.date}T${match.matchTime}:00`);
       if (Number.isNaN(startDate.getTime())) return Alert.alert("Calendrier", "La date ou l'heure du match n'est pas valide.");
       await Calendar.createEventInCalendarAsync({ title: `DYNO vs ${match.opponent}`, startDate, endDate: new Date(startDate.getTime() + 90 * 60 * 1000), location: match.arena, notes: [`Type : ${match.type}`, `Rendez-vous : ${match.arrivalTime}`, match.notes].filter(Boolean).join("\n"), alarms: [{ relativeOffset: -30 }], timeZone: "Europe/Paris" });
-    } catch { Alert.alert("Calendrier", "Impossible d'ouvrir le calendrier du téléphone."); }
+    } catch {
+      Alert.alert("Calendrier", "Impossible d'ouvrir le calendrier du téléphone.");
+    }
   }
 
   function openMoreActions(match: Match) {
@@ -97,13 +121,16 @@ export default function PlanningScreen() {
     ]);
   }
 
+  const detailRows = details ? roster.map((player) => ({ player, response: responseForPlayer(details, player) })) : [];
+
   return (
     <SafeAreaView style={styles.container}>
       <ImageBackground source={marbleSource} style={styles.background} imageStyle={styles.backgroundImage}>
         <View style={styles.overlay} />
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text><Text style={styles.title}>Agenda</Text>
-          <Text style={styles.subtitle}>Disponibilités, historique et partage des matchs.</Text>
+          <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
+          <Text style={styles.title}>Agenda</Text>
+          <Text style={styles.subtitle}>Disponibilités, historique et joueurs sans réponse.</Text>
           <View style={styles.filters}>
             <FilterButton label="À venir" active={filter === "upcoming"} onPress={() => setFilter("upcoming")} />
             <FilterButton label="Historique" active={filter === "history"} onPress={() => setFilter("history")} />
@@ -112,15 +139,14 @@ export default function PlanningScreen() {
 
           {filteredMatches.length === 0 ? <View style={styles.emptyCard}><Ionicons name="calendar-clear-outline" size={40} color={Theme.colors.goldLight} /><Text style={styles.emptyTitle}>Aucun match</Text><Text style={styles.emptyText}>Aucun match ne correspond à ce filtre.</Text></View> : filteredMatches.map((match) => {
             const response = match.responses.find((item) => item.uid === session?.localId)?.status ?? "En attente";
-            const available = match.responses.filter((item) => item.status === "Disponible").length;
-            const unavailable = match.responses.filter((item) => item.status === "Indisponible").length;
-            const pending = match.responses.filter((item) => item.status === "En attente").length;
+            const summary = getResponseSummary(match);
             const isSaving = savingMatchId === match.id;
             const isPast = new Date(`${match.date}T${match.matchTime}:00`).getTime() < Date.now();
             return <View key={match.id} style={styles.card}>
               <View style={styles.topRow}><View style={styles.dateColumn}><Text style={styles.day}>{getDay(match.date)}</Text><Text style={styles.month}>{getMonth(match.date)}</Text></View><View style={styles.cardContent}><View style={styles.metaRow}><Text style={styles.type}>{match.type.toUpperCase()}</Text><Text style={[styles.status, match.status === "Confirmé" && styles.confirmed, match.status === "Annulé" && styles.cancelled]}>{match.status}</Text></View><Text style={styles.eventTitle}>DYNO vs {match.opponent}</Text><View style={styles.detailsRow}><Detail icon="people-outline" text={`RDV ${match.arrivalTime}`} /><Detail icon="time-outline" text={`Match ${match.matchTime}`} /><Detail icon="business-outline" text={match.arena} /></View></View></View>
               {!isPast && match.status !== "Annulé" ? <><Text style={styles.answerLabel}>TA DISPONIBILITÉ</Text><View style={styles.answerRow}><AnswerButton active={response === "Disponible"} positive label="Disponible" disabled={isSaving} onPress={() => void answer(match.id, "Disponible")} /><AnswerButton active={response === "Indisponible"} label="Indisponible" disabled={isSaving} onPress={() => void answer(match.id, "Indisponible")} /></View></> : null}
-              <TouchableOpacity style={styles.summaryRow} onPress={() => setDetails(match)}><Text style={styles.summaryAvailable}>● {available} dispo</Text><Text style={styles.summaryUnavailable}>● {unavailable} indispo</Text><Text style={styles.summaryPending}>● {pending} attente</Text><Ionicons name="chevron-forward" size={15} color="#999" /></TouchableOpacity>
+              <TouchableOpacity style={styles.summaryRow} onPress={() => setDetails(match)}><Text style={styles.summaryAvailable}>● {summary.available} dispo</Text><Text style={styles.summaryUnavailable}>● {summary.unavailable} indispo</Text><Text style={styles.summaryPending}>● {summary.pendingPlayers.length} sans réponse</Text><Ionicons name="chevron-forward" size={15} color="#999" /></TouchableOpacity>
+              {summary.pendingPlayers.length ? <Text style={styles.pendingNames} numberOfLines={2}>{summary.pendingPlayers.map((player) => player.nickname).join(", ")}</Text> : null}
               {match.notes ? <Text style={styles.notes}>{match.notes}</Text> : null}
               <View style={styles.actionRow}>
                 {!isPast && match.status !== "Annulé" ? <TouchableOpacity style={styles.calendarButton} onPress={() => void addToCalendar(match)}><Ionicons name="calendar-outline" size={16} color="#080808" /><Text style={styles.calendarButtonText}>CALENDRIER</Text></TouchableOpacity> : null}
@@ -131,7 +157,15 @@ export default function PlanningScreen() {
           })}
         </ScrollView>
       </ImageBackground>
-      <Modal visible={Boolean(details)} transparent animationType="fade" onRequestClose={() => setDetails(null)}><View style={styles.modalBackdrop}><View style={styles.modalCard}><View style={styles.modalHeader}><Text style={styles.modalTitle}>Réponses de l'équipe</Text><TouchableOpacity onPress={() => setDetails(null)}><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity></View>{details?.responses.length ? details.responses.map((item, index) => <View key={`${item.uid ?? item.player}-${index}`} style={styles.responseRow}><Text style={styles.responsePlayer}>{item.player}</Text><Text style={[styles.responseStatus, item.status === "Disponible" ? styles.responseOk : styles.responseNo]}>{item.status}</Text></View>) : <Text style={styles.noResponse}>Aucune réponse pour le moment.</Text>}</View></View></Modal>
+
+      <Modal visible={Boolean(details)} transparent animationType="fade" onRequestClose={() => setDetails(null)}>
+        <View style={styles.modalBackdrop}><View style={styles.modalCard}>
+          <View style={styles.modalHeader}><Text style={styles.modalTitle}>Réponses de l'équipe</Text><TouchableOpacity onPress={() => setDetails(null)}><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity></View>
+          <ScrollView>
+            {detailRows.length ? detailRows.map(({ player, response }) => <View key={player.id} style={styles.responseRow}><Text style={styles.responsePlayer}>{player.nickname}</Text><Text style={[styles.responseStatus, response?.status === "Disponible" ? styles.responseOk : response?.status === "Indisponible" ? styles.responseNo : styles.responsePending]}>{response?.status ?? "Sans réponse"}</Text></View>) : <Text style={styles.noResponse}>Aucun membre dans l'équipe.</Text>}
+          </ScrollView>
+        </View></View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -149,6 +183,6 @@ const styles = StyleSheet.create({
   emptyCard: { alignItems: "center", padding: 30, borderRadius: 24, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, emptyTitle: { color: "#fff", fontSize: 19, fontWeight: "900", marginTop: 10 }, emptyText: { color: "#C8C8C8", textAlign: "center", lineHeight: 20, marginTop: 7 },
   card: { marginBottom: 15, padding: 16, borderRadius: 24, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, topRow: { flexDirection: "row" }, dateColumn: { width: 66, height: 78, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "#F4F0E6", marginRight: 15 }, day: { color: "#111", fontSize: 28, fontWeight: "900", lineHeight: 31 }, month: { color: "#7D6422", fontSize: 11, fontWeight: "900" }, cardContent: { flex: 1 }, metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, type: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1 }, status: { color: "#E2C567", fontSize: 11, fontWeight: "800" }, confirmed: { color: "#87D958" }, cancelled: { color: "#FF7777" }, eventTitle: { color: "#fff", fontSize: 18, fontWeight: "900", marginTop: 9 }, detailsRow: { flexDirection: "row", flexWrap: "wrap", gap: 13, marginTop: 12 }, detail: { flexDirection: "row", alignItems: "center", gap: 5 }, detailText: { color: "#D2D2D2", fontSize: 12 },
   answerLabel: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.1, marginTop: 16, marginBottom: 8 }, answerRow: { flexDirection: "row", gap: 10 }, answerButton: { flex: 1, minHeight: 44, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.04)" }, answerPositive: { backgroundColor: "#84D956", borderColor: "#84D956" }, answerNegative: { backgroundColor: "#FF7474", borderColor: "#FF7474" }, answerText: { color: "#E5E5E5", fontSize: 11, fontWeight: "900" }, answerTextActive: { color: "#080808" }, disabled: { opacity: 0.55 },
-  summaryRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 13 }, summaryAvailable: { color: "#84D956", fontSize: 10, fontWeight: "800" }, summaryUnavailable: { color: "#FF7474", fontSize: 10, fontWeight: "800" }, summaryPending: { color: "#E0BD50", fontSize: 10, fontWeight: "800", flex: 1 }, notes: { color: "#C8C8C8", fontSize: 12, marginTop: 12, lineHeight: 18 }, actionRow: { flexDirection: "row", gap: 8, marginTop: 14 }, calendarButton: { minHeight: 42, flex: 1, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: Theme.colors.goldLight }, calendarButtonText: { color: "#080808", fontSize: 10, fontWeight: "900" }, shareButton: { minHeight: 42, flex: 1, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(224,184,67,0.4)" }, shareText: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900" }, manageButton: { width: 46, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(224,184,67,0.4)" },
-  modalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.78)" }, modalCard: { maxHeight: "75%", borderRadius: 24, padding: 20, backgroundColor: "#111", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }, modalTitle: { color: "#fff", fontSize: 20, fontWeight: "900" }, responseRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.07)" }, responsePlayer: { color: "#fff", fontWeight: "800" }, responseStatus: { fontSize: 11, fontWeight: "900" }, responseOk: { color: "#84D956" }, responseNo: { color: "#FF7474" }, noResponse: { color: "#C8C8C8", textAlign: "center", paddingVertical: 24 },
+  summaryRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 13 }, summaryAvailable: { color: "#84D956", fontSize: 10, fontWeight: "800" }, summaryUnavailable: { color: "#FF7474", fontSize: 10, fontWeight: "800" }, summaryPending: { color: "#E0BD50", fontSize: 10, fontWeight: "800", flex: 1 }, pendingNames: { color: "#C8C8C8", fontSize: 11, marginTop: 7, lineHeight: 16 }, notes: { color: "#C8C8C8", fontSize: 12, marginTop: 12, lineHeight: 18 }, actionRow: { flexDirection: "row", gap: 8, marginTop: 14 }, calendarButton: { minHeight: 42, flex: 1, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: Theme.colors.goldLight }, calendarButtonText: { color: "#080808", fontSize: 10, fontWeight: "900" }, shareButton: { minHeight: 42, flex: 1, borderRadius: 13, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(224,184,67,0.4)" }, shareText: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900" }, manageButton: { width: 46, borderRadius: 13, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(224,184,67,0.4)" },
+  modalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.78)" }, modalCard: { maxHeight: "75%", borderRadius: 24, padding: 20, backgroundColor: "#111", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }, modalTitle: { color: "#fff", fontSize: 20, fontWeight: "900" }, responseRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.07)" }, responsePlayer: { color: "#fff", fontWeight: "800", flex: 1 }, responseStatus: { fontSize: 11, fontWeight: "900" }, responseOk: { color: "#84D956" }, responseNo: { color: "#FF7474" }, responsePending: { color: "#E0BD50" }, noResponse: { color: "#C8C8C8", textAlign: "center", paddingVertical: 24 },
 });

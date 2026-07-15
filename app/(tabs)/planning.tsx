@@ -44,13 +44,19 @@ export default function PlanningScreen() {
     } catch { Alert.alert("Calendrier", "Impossible d'ouvrir le calendrier du téléphone."); }
   }
 
+  function openMoreActions(match: Match) {
+    Alert.alert(`DYNO vs ${match.opponent}`, "Actions supplémentaires", [
+      { text: match.status === "Annulé" ? "Réactiver" : "Annuler le scrim", onPress: () => void updateMatch(match.id, { status: match.status === "Annulé" ? "En attente" : "Annulé" }) },
+      { text: "Supprimer", style: "destructive", onPress: () => Alert.alert("Supprimer le scrim", "Cette action est définitive.", [{ text: "Retour", style: "cancel" }, { text: "Supprimer", style: "destructive", onPress: () => void deleteMatch(match.id) }]) },
+      { text: "Fermer", style: "cancel" },
+    ]);
+  }
+
   function manage(match: Match) {
     Alert.alert(`DYNO vs ${match.opponent}`, "Choisis une action", [
       { text: "Modifier", onPress: () => router.push({ pathname: "/(tabs)/scrims", params: { editId: match.id } }) },
-      { text: match.status === "Annulé" ? "Réactiver" : "Annuler le scrim", onPress: () => void updateMatch(match.id, { status: match.status === "Annulé" ? "En attente" : "Annulé" }) },
       { text: "Dupliquer", onPress: () => void duplicateMatch(match.id).then(() => Alert.alert("Scrim dupliqué", "Une copie a été ajoutée à l'agenda.")) },
-      { text: "Supprimer", style: "destructive", onPress: () => Alert.alert("Supprimer le scrim", "Cette action est définitive.", [{ text: "Retour", style: "cancel" }, { text: "Supprimer", style: "destructive", onPress: () => void deleteMatch(match.id) }]) },
-      { text: "Fermer", style: "cancel" },
+      { text: "Plus d'actions", onPress: () => openMoreActions(match) },
     ]);
   }
 

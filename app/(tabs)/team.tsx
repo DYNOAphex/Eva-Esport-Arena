@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import { Alert, ImageBackground, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
+import { getStoredSession } from "../../services/authService";
 import { getMatches, Match, subscribeToMatches } from "../../services/matchStore";
 import {
   addRosterPlayer,
   deleteRosterPlayer,
+  ensureCurrentAccountRosterPlayer,
   getRoster,
   linkCurrentAccountToPlayer,
   RosterPlayer,
@@ -27,6 +29,11 @@ export default function TeamScreen() {
     let active = true;
     void getRoster().then((items) => active && setMembers(items));
     void getMatches().then((items) => active && setMatches(items));
+    void getStoredSession().then(async (session) => {
+      if (!session) return;
+      const provisionalNickname = session.email.split("@")[0].replace(/[._-]+/g, " ").trim() || "Joueur DYNO";
+      await ensureCurrentAccountRosterPlayer(provisionalNickname).catch(() => null);
+    });
     const unsubscribeRoster = subscribeToRoster(setMembers);
     const unsubscribeMatches = subscribeToMatches(setMatches);
     return () => { active = false; unsubscribeRoster(); unsubscribeMatches(); };

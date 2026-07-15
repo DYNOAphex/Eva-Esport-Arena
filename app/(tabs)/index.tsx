@@ -6,10 +6,10 @@ import { Alert, Image, ImageBackground, RefreshControl, SafeAreaView, ScrollView
 
 import { Theme } from "../../constants/theme";
 import { getMatches, Match, subscribeToMatches, toMatchDate } from "../../services/matchStore";
+import { getRoster, RosterPlayer, subscribeToRoster } from "../../services/rosterStore";
 
 const logoSource = require("../../assets/images/logo-dyno.png");
 const marbleSource = require("../../assets/images/background-marble.jpg");
-const players = ["KroxX", "Neazy", "Zerox", "Venom", "Lyzen", "Skyzz"];
 
 function formatTime(value?: string) { return value ? value.replace(":", "h") : "--h--"; }
 function getDateParts(value?: string) {
@@ -23,12 +23,15 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshText, setRefreshText] = useState("Tire vers le bas pour actualiser");
   const [matches, setMatches] = useState<Match[]>([]);
+  const [players, setPlayers] = useState<RosterPlayer[]>([]);
 
   useEffect(() => {
     let active = true;
     void getMatches().then((items) => active && setMatches(items));
-    const unsubscribe = subscribeToMatches(setMatches);
-    return () => { active = false; unsubscribe(); };
+    void getRoster().then((items) => active && setPlayers(items));
+    const unsubscribeMatches = subscribeToMatches(setMatches);
+    const unsubscribeRoster = subscribeToRoster(setPlayers);
+    return () => { active = false; unsubscribeMatches(); unsubscribeRoster(); };
   }, []);
 
   const upcomingMatches = useMemo(() => {
@@ -37,8 +40,9 @@ export default function DashboardScreen() {
   }, [matches]);
 
   const nextMatch = upcomingMatches[0];
+  const answeredCount = nextMatch?.responses.filter((response) => response.status !== "En attente").length ?? 0;
   const availableCount = nextMatch?.responses.filter((response) => response.status === "Disponible").length ?? 0;
-  const pendingCount = nextMatch?.responses.filter((response) => response.status === "En attente").length ?? 0;
+  const pendingCount = nextMatch ? Math.max(players.length - answeredCount, 0) : 0;
   const dateParts = getDateParts(nextMatch?.date);
   const stats = [
     { icon: "people" as const, value: String(players.length), label: "Joueurs", detail: "dans l'équipe" },
@@ -49,13 +53,14 @@ export default function DashboardScreen() {
 
   const refreshApp = useCallback(async () => {
     if (refreshing) return;
-    setRefreshing(true); setRefreshText("Synchronisation des matchs…");
+    setRefreshing(true); setRefreshText("Synchronisation des données…");
     try {
-      setMatches(await getMatches());
-      if (!Updates.isEnabled) { setRefreshText("Matchs actualisés"); return; }
+      const [matchItems, rosterItems] = await Promise.all([getMatches(), getRoster()]);
+      setMatches(matchItems); setPlayers(rosterItems);
+      if (!Updates.isEnabled) { setRefreshText("Données actualisées"); return; }
       setRefreshText("Recherche d'une mise à jour…");
       const update = await Updates.checkForUpdateAsync();
-      if (!update.isAvailable) { setRefreshText("Application et matchs actualisés"); return; }
+      if (!update.isAvailable) { setRefreshText("Application et données actualisées"); return; }
       setRefreshText("Téléchargement de la mise à jour…");
       await Updates.fetchUpdateAsync();
       Alert.alert("Mise à jour prête", "L'application va redémarrer.", [{ text: "Redémarrer", onPress: () => Updates.reloadAsync() }]);
@@ -72,7 +77,7 @@ export default function DashboardScreen() {
           <View style={styles.header}>
             <TouchableOpacity style={styles.roundButton} activeOpacity={0.8} onPress={() => router.push("/(tabs)/profile")} accessibilityLabel="Ouvrir les réglages des notifications">
               <Ionicons name="notifications-outline" size={23} color="#fff" />
-              {upcomingMatches.length > 0 && <View style={styles.notificationDot} />}
+              {pendingCount > 0 && <View style={styles.notificationDot} />}
             </TouchableOpacity>
             <View style={styles.brand}><Image source={logoSource} style={styles.logo} resizeMode="contain" /><View><Text style={styles.brandName}>DYNO</Text><Text style={styles.brandSub}>ESPORT MANAGER</Text></View></View>
             <TouchableOpacity style={styles.coachBadge} activeOpacity={0.8} onPress={() => router.push("/(tabs)/profile")}><Ionicons name="diamond" size={13} color={Theme.colors.goldLight} /><Text style={styles.coachLetter}>C</Text><Text style={styles.coachRole}>Coach</Text></TouchableOpacity>
@@ -87,8 +92,13 @@ export default function DashboardScreen() {
           </View>
 
           <View style={styles.statsGrid}>{stats.map((stat) => <View key={stat.label} style={styles.statCard}><Ionicons name={stat.icon} size={26} color={Theme.colors.goldLight} /><Text style={styles.statValue}>{stat.value}</Text><Text style={styles.statLabel}>{stat.label}</Text><Text style={styles.statDetail}>{stat.detail}</Text></View>)}</View>
-          <View style={styles.sectionCard}><View style={styles.sectionHeader}><View style={styles.onlineTitle}><View style={styles.onlineDot} /><Text style={styles.sectionTitle}>JOUEURS DE L'ÉQUIPE</Text></View><Text style={styles.seeAll}>{players.length} joueurs</Text></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.playersRow}>{players.map((player) => <View key={player} style={styles.player}><View style={styles.avatar}><Text style={styles.avatarInitial}>{player[0]}</Text><View style={styles.playerDot} /></View><Text style={styles.playerName}>{player}</Text><Text style={styles.playerStatus}>Équipe DYNO</Text></View>)}</ScrollView></View>
-          <View style={styles.sectionCard}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>ANNONCE MATCH</Text><Text style={styles.seeAll}>{nextMatch?.status ?? "Aucune"}</Text></View><View style={styles.announcement}><View style={styles.announcementIcon}><Ionicons name="megaphone-outline" size={33} color={Theme.colors.goldLight} /></View><View style={styles.announcementContent}><Text style={styles.announcementTitle}>{nextMatch ? `${nextMatch.type} contre ${nextMatch.opponent}` : "Aucun match programmé"}</Text><Text style={styles.announcementText}>{nextMatch ? `Lobby à ${formatTime(nextMatch.arrivalTime)}, match à ${formatTime(nextMatch.matchTime)}.` : "Crée un match depuis le calendrier pour l'afficher ici."}</Text><Text style={styles.announcementTime}>{nextMatch ? `${availableCount} disponible(s)` : "En attente de planification"}</Text></View></View></View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}><View style={styles.onlineTitle}><View style={styles.onlineDot} /><Text style={styles.sectionTitle}>JOUEURS DE L'ÉQUIPE</Text></View><Text style={styles.seeAll}>{players.length} joueurs</Text></View>
+            {players.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.playersRow}>{players.map((player) => <View key={player.id} style={styles.player}><View style={styles.avatar}><Text style={styles.avatarInitial}>{player.nickname.slice(0, 1).toUpperCase()}</Text></View><Text style={styles.playerName}>{player.nickname}</Text><Text style={styles.playerStatus}>Équipe DYNO</Text></View>)}</ScrollView> : <Text style={styles.emptyRoster}>Aucun joueur ajouté.</Text>}
+          </View>
+
+          <View style={styles.sectionCard}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>ANNONCE MATCH</Text><Text style={styles.seeAll}>{nextMatch?.status ?? "Aucune"}</Text></View><View style={styles.announcement}><View style={styles.announcementIcon}><Ionicons name="megaphone-outline" size={33} color={Theme.colors.goldLight} /></View><View style={styles.announcementContent}><Text style={styles.announcementTitle}>{nextMatch ? `${nextMatch.type} contre ${nextMatch.opponent}` : "Aucun match programmé"}</Text><Text style={styles.announcementText}>{nextMatch ? `Lobby à ${formatTime(nextMatch.arrivalTime)}, match à ${formatTime(nextMatch.matchTime)}.` : "Crée un match depuis le calendrier pour l'afficher ici."}</Text><Text style={styles.announcementTime}>{nextMatch ? `${availableCount} disponible(s) · ${pendingCount} en attente` : "En attente de planification"}</Text></View></View></View>
         </ScrollView>
       </ImageBackground>
     </SafeAreaView>
@@ -98,7 +108,7 @@ export default function DashboardScreen() {
 function Meta({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) { return <View style={styles.metaItem}><Ionicons name={icon} size={22} color={Theme.colors.goldLight} /><Text style={styles.metaValue}>{value}</Text><Text style={styles.metaLabel}>{label}</Text></View>; }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#070707" }, background: { flex: 1 }, backgroundImage: { opacity: 0.76 }, backgroundShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.48)" }, vignetteTop: { position: "absolute", top: 0, left: 0, right: 0, height: 190, backgroundColor: "rgba(0,0,0,0.24)" }, content: { paddingHorizontal: 18, paddingTop: 4, paddingBottom: 128 }, refreshHint: { color: "rgba(246,215,106,0.82)", fontSize: 10, textAlign: "center", marginBottom: 1 }, header: { minHeight: 96, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 15 }, roundButton: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.82)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" }, notificationDot: { position: "absolute", right: 7, top: 7, width: 10, height: 10, borderRadius: 5, backgroundColor: Theme.colors.gold }, brand: { flexDirection: "row", alignItems: "center", gap: 8 }, logo: { width: 44, height: 44, borderRadius: 12 }, brandName: { color: "#fff", fontSize: 27, fontWeight: "900", letterSpacing: 2.7 }, brandSub: { color: "#D7D7D7", fontSize: 8, fontWeight: "800", letterSpacing: 2.1, marginTop: -1 }, coachBadge: { width: 58, height: 74, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.84)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" }, coachLetter: { color: "#fff", fontSize: 22, fontWeight: "900" }, coachRole: { color: "#D0D0D0", fontSize: 10, fontWeight: "700" },
+  container: { flex: 1, backgroundColor: "#070707" }, background: { flex: 1 }, backgroundImage: { opacity: 0.76 }, backgroundShade: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.48)" }, vignetteTop: { position: "absolute", top: 0, left: 0, right: 0, height: 190, backgroundColor: "rgba(0,0,0,0.24)" }, content: { paddingHorizontal: 18, paddingTop: 28, paddingBottom: 150 }, refreshHint: { color: "rgba(246,215,106,0.82)", fontSize: 10, textAlign: "center", marginBottom: 1 }, header: { minHeight: 96, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 15 }, roundButton: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.82)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" }, notificationDot: { position: "absolute", right: 7, top: 7, width: 10, height: 10, borderRadius: 5, backgroundColor: Theme.colors.gold }, brand: { flexDirection: "row", alignItems: "center", gap: 8 }, logo: { width: 44, height: 44, borderRadius: 12 }, brandName: { color: "#fff", fontSize: 27, fontWeight: "900", letterSpacing: 2.7 }, brandSub: { color: "#D7D7D7", fontSize: 8, fontWeight: "800", letterSpacing: 2.1, marginTop: -1 }, coachBadge: { width: 58, height: 74, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.84)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" }, coachLetter: { color: "#fff", fontSize: 22, fontWeight: "900" }, coachRole: { color: "#D0D0D0", fontSize: 10, fontWeight: "700" },
   heroCard: { overflow: "hidden", borderRadius: 27, padding: 18, backgroundColor: "rgba(9,9,9,0.68)", borderWidth: 1, borderColor: "rgba(224,184,67,0.48)", shadowColor: Theme.colors.gold, shadowOpacity: 0.2, shadowRadius: 16, elevation: 8 }, whiteGlass: { position: "absolute", top: -50, right: -96, width: 270, height: 410, borderRadius: 135, backgroundColor: "rgba(255,255,255,0.13)", transform: [{ rotate: "13deg" }] }, goldHairline: { position: "absolute", top: 0, left: 34, right: 34, height: 1, backgroundColor: "rgba(255,218,104,0.75)" }, heroTop: { flexDirection: "row", alignItems: "center" }, dateBadge: { width: 64, height: 74, borderRadius: 17, backgroundColor: "#F5F1E8", alignItems: "center", justifyContent: "center", marginRight: 16 }, dateMonth: { color: "#725C1D", fontSize: 12, fontWeight: "900" }, dateDay: { color: "#111", fontSize: 30, lineHeight: 32, fontWeight: "900" }, eyebrow: { color: Theme.colors.goldLight, fontSize: 15, fontWeight: "900", letterSpacing: 1.1 }, confirmedSmall: { color: "#91D653", fontSize: 12, fontWeight: "900", marginTop: 6 }, versusRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginVertical: 28 }, teamName: { color: "#fff", fontSize: 27, fontWeight: "900", letterSpacing: 1, maxWidth: "42%" }, vs: { color: Theme.colors.gold, fontSize: 19, fontWeight: "900" }, metaRow: { flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.13)", paddingTop: 17 }, metaItem: { flex: 1, alignItems: "center" }, metaValue: { color: "#fff", fontSize: 14, fontWeight: "900", marginTop: 6 }, metaLabel: { color: "#D1D1D1", fontSize: 10, textAlign: "center", marginTop: 3 }, divider: { width: 1, height: 54, backgroundColor: "rgba(255,255,255,0.13)" }, confirmButton: { alignSelf: "center", minWidth: 190, height: 48, borderRadius: 24, marginTop: 19, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(4,4,4,0.88)", borderWidth: 1, borderColor: "rgba(224,184,67,0.5)" }, confirmText: { color: "#92DD54", fontSize: 17, fontWeight: "900" },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 14 }, statCard: { width: "48.4%", minHeight: 154, borderRadius: 23, padding: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.68)", borderWidth: 1, borderColor: "rgba(224,184,67,0.3)", marginBottom: 12 }, statValue: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 8 }, statLabel: { color: "#fff", fontSize: 14, fontWeight: "900", marginTop: 2 }, statDetail: { color: "#D0D0D0", fontSize: 11, marginTop: 6 }, sectionCard: { borderRadius: 24, padding: 16, backgroundColor: "rgba(8,8,8,0.7)", borderWidth: 1, borderColor: "rgba(224,184,67,0.32)", marginBottom: 14 }, sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }, onlineTitle: { flexDirection: "row", alignItems: "center" }, onlineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#7AD351", marginRight: 8 }, sectionTitle: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900", letterSpacing: 0.7 }, seeAll: { color: Theme.colors.gold, fontSize: 12, fontWeight: "800" }, playersRow: { gap: 15, paddingRight: 8 }, player: { width: 65, alignItems: "center" }, avatar: { width: 59, height: 59, borderRadius: 30, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(18,18,18,0.94)", borderWidth: 1, borderColor: "rgba(241,205,97,0.78)" }, avatarInitial: { color: "#fff", fontSize: 22, fontWeight: "900" }, playerDot: { position: "absolute", right: 1, bottom: 2, width: 13, height: 13, borderRadius: 7, backgroundColor: "#37CA4C", borderWidth: 2, borderColor: "#111" }, playerName: { color: "#fff", fontSize: 11, fontWeight: "900", marginTop: 7 }, playerStatus: { color: "#83D354", fontSize: 9, marginTop: 2 }, announcement: { flexDirection: "row", alignItems: "center" }, announcementIcon: { width: 70, height: 70, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(212,175,55,0.09)", borderWidth: 1, borderColor: "rgba(224,184,67,0.42)", marginRight: 14 }, announcementContent: { flex: 1 }, announcementTitle: { color: "#fff", fontSize: 14, fontWeight: "900" }, announcementText: { color: "#D0D0D0", fontSize: 12, lineHeight: 18, marginTop: 5 }, announcementTime: { color: "#9A9A9A", fontSize: 10, marginTop: 5 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 14 }, statCard: { width: "48.4%", minHeight: 154, borderRadius: 23, padding: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.68)", borderWidth: 1, borderColor: "rgba(224,184,67,0.3)", marginBottom: 12 }, statValue: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 8 }, statLabel: { color: "#fff", fontSize: 14, fontWeight: "900", marginTop: 2 }, statDetail: { color: "#D0D0D0", fontSize: 11, marginTop: 6 }, sectionCard: { borderRadius: 24, padding: 16, backgroundColor: "rgba(8,8,8,0.7)", borderWidth: 1, borderColor: "rgba(224,184,67,0.32)", marginBottom: 14 }, sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }, onlineTitle: { flexDirection: "row", alignItems: "center" }, onlineDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#7AD351", marginRight: 8 }, sectionTitle: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900", letterSpacing: 0.7 }, seeAll: { color: Theme.colors.gold, fontSize: 12, fontWeight: "800" }, playersRow: { gap: 15, paddingRight: 8 }, player: { width: 65, alignItems: "center" }, avatar: { width: 59, height: 59, borderRadius: 30, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(18,18,18,0.94)", borderWidth: 1, borderColor: "rgba(241,205,97,0.78)" }, avatarInitial: { color: "#fff", fontSize: 22, fontWeight: "900" }, playerName: { color: "#fff", fontSize: 11, fontWeight: "900", marginTop: 7 }, playerStatus: { color: "#83D354", fontSize: 9, marginTop: 2 }, emptyRoster: { color: "#aaa", textAlign: "center", paddingVertical: 16 }, announcement: { flexDirection: "row", alignItems: "center" }, announcementIcon: { width: 70, height: 70, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(212,175,55,0.09)", borderWidth: 1, borderColor: "rgba(224,184,67,0.42)", marginRight: 14 }, announcementContent: { flex: 1 }, announcementTitle: { color: "#fff", fontSize: 14, fontWeight: "900" }, announcementText: { color: "#D0D0D0", fontSize: 12, lineHeight: 18, marginTop: 5 }, announcementTime: { color: "#9A9A9A", fontSize: 10, marginTop: 5 },
 });

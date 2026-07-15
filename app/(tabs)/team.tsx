@@ -7,6 +7,7 @@ import { getMatches, Match, subscribeToMatches } from "../../services/matchStore
 import {
   addRosterPlayer,
   deleteRosterPlayer,
+  ensureCurrentAccountRosterPlayer,
   getRoster,
   linkCurrentAccountToPlayer,
   RosterPlayer,
@@ -36,7 +37,12 @@ export default function TeamScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      await addRosterPlayer({ nickname });
+      const currentAccountAlreadyLinked = members.some((member) => Boolean(member.accountUid));
+      if (currentAccountAlreadyLinked) {
+        await addRosterPlayer({ nickname });
+      } else {
+        await ensureCurrentAccountRosterPlayer(nickname);
+      }
       setNickname("");
       setModalVisible(false);
     } catch (error) {

@@ -29,6 +29,14 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Generate PWA icons
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick
+          magick assets/images/logo-dyno.png -resize 166x166 -background '#050505' -gravity center -extent 192x192 public/pwa-192.png
+          magick assets/images/logo-dyno.png -resize 442x442 -background '#050505' -gravity center -extent 512x512 public/pwa-512.png
+          magick assets/images/logo-dyno.png -resize 358x358 -background '#050505' -gravity center -extent 512x512 public/pwa-maskable-512.png
+
       - name: Export web app
         run: npm run export:web
 

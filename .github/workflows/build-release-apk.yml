@@ -126,6 +126,16 @@ jobs:
             echo "Le secret ANDROID_KEYSTORE_BASE64 ne produit aucun fichier keystore."
             exit 1
           fi
+
+          if ! keytool -list \
+            -keystore android/app/dyno-release.keystore \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "Le keystore est corrompu, incomplet, ou les secrets de signature sont incorrects."
+            echo "Recrée ANDROID_KEYSTORE_BASE64 directement depuis le fichier .jks complet."
+            exit 1
+          fi
+
           node - <<'NODE'
           const fs = require('fs');
           const path = 'android/app/build.gradle';

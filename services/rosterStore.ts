@@ -3,15 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { firebaseConfig } from "../firebase/config";
 import { getValidSession } from "./authService";
 
-export type PlayerRole = "Coach" | "Manager" | "Capitaine" | "Joueur" | "Remplaçant";
-export type PlayerStatus = "Disponible" | "Absent" | "En vacances";
-
 export type RosterPlayer = {
   id: string;
   nickname: string;
-  role: PlayerRole;
-  status: PlayerStatus;
-  rank?: string;
   createdAt: string;
 };
 
@@ -45,7 +39,12 @@ async function readStoredPlayers() {
   const raw = await AsyncStorage.getItem(STORAGE_KEY);
   if (!raw) return [];
   try {
-    const players = removeLegacySeeds(JSON.parse(raw) as RosterPlayer[]);
+    const stored = JSON.parse(raw) as Array<RosterPlayer & Record<string, unknown>>;
+    const players = removeLegacySeeds(stored.map((player) => ({
+      id: player.id,
+      nickname: player.nickname,
+      createdAt: player.createdAt,
+    })));
     if (!players.length) await AsyncStorage.removeItem(STORAGE_KEY);
     return sortPlayers(players);
   } catch {
@@ -63,9 +62,6 @@ async function requireUser() {
 function fields(player: RosterPlayer): Record<string, FirestoreValue> {
   return {
     nickname: { stringValue: player.nickname },
-    role: { stringValue: player.role },
-    status: { stringValue: player.status },
-    rank: { stringValue: player.rank ?? "" },
     createdAt: { stringValue: player.createdAt },
   };
 }
@@ -76,14 +72,9 @@ function readString(value?: FirestoreValue) {
 
 function documentToPlayer(document: FirestoreDocument): RosterPlayer {
   const data = document.fields ?? {};
-  const role = readString(data.role);
-  const status = readString(data.status);
   return {
     id: document.name.split("/").pop() ?? `${Date.now()}`,
     nickname: readString(data.nickname) || "Joueur DYNO",
-    role: role === "Coach" || role === "Manager" || role === "Capitaine" || role === "Remplaçant" ? role : "Joueur",
-    status: status === "Absent" || status === "En vacances" ? status : "Disponible",
-    rank: readString(data.rank) || undefined,
     createdAt: readString(data.createdAt) || new Date().toISOString(),
   };
 }
@@ -147,7 +138,7 @@ export async function getRoster() {
   return local;
 }
 
-export async function addRosterPlayer(input: Pick<RosterPlayer, "nickname" | "role" | "status" | "rank">) {
+export async function addRosterPlayer(input: Pick<RosterPlayer, "nickname">) {
   await requireUser();
   const nickname = input.nickname.trim();
   if (!nickname) throw new Error("Le pseudo est obligatoire.");
@@ -156,7 +147,6 @@ export async function addRosterPlayer(input: Pick<RosterPlayer, "nickname" | "ro
     throw new Error("Ce joueur existe déjà dans l'équipe.");
   }
   const player: RosterPlayer = {
-    ...input,
     nickname,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     createdAt: new Date().toISOString(),

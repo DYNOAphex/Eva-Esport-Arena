@@ -18,6 +18,7 @@ export default function ProfileScreen() {
   const [reminder24h, setReminder24h] = useState(true);
   const [reminder1h, setReminder1h] = useState(true);
   const [appearance, setAppearance] = useState<AppearanceMode>("gold");
+  const [confirmationThreshold, setConfirmationThreshold] = useState(4);
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
 
@@ -29,6 +30,7 @@ export default function ProfileScreen() {
       setReminder24h(settings.reminder24h);
       setReminder1h(settings.reminder1h);
       setAppearance(settings.appearance);
+      setConfirmationThreshold(settings.confirmationThreshold);
     });
     return () => { active = false; };
   }, []);
@@ -65,6 +67,16 @@ export default function ProfileScreen() {
   async function toggleAppearance() {
     const settings = await updateAppSettings({ appearance: appearance === "gold" ? "dark" : "gold" });
     setAppearance(settings.appearance);
+  }
+
+  function chooseThreshold() {
+    Alert.alert("Confirmation automatique", "Nombre minimum de joueurs disponibles", [
+      ...[3, 4, 5, 6].map((value) => ({
+        text: `${value} joueurs${value === confirmationThreshold ? " ✓" : ""}`,
+        onPress: () => void updateAppSettings({ confirmationThreshold: value }).then((settings) => setConfirmationThreshold(settings.confirmationThreshold)),
+      })),
+      { text: "Fermer", style: "cancel" },
+    ]);
   }
 
   async function checkUpdate() {
@@ -104,6 +116,8 @@ export default function ProfileScreen() {
             <View style={styles.separator} />
             <Setting icon="alarm-outline" label="Rappel 1 h avant" value={reminder1h ? "Activé" : "Désactivé"} disabled={!notificationsEnabled} onPress={() => void toggleReminder1h()} />
             <View style={styles.separator} />
+            <Setting icon="people-outline" label="Confirmation auto" value={`${confirmationThreshold} joueurs`} onPress={chooseThreshold} />
+            <View style={styles.separator} />
             <Setting icon="color-palette-outline" label="Apparence" value={appearance === "gold" ? "DYNO Or" : "Sombre"} onPress={() => void toggleAppearance()} />
           </View>
 
@@ -137,35 +151,7 @@ function Setting({ icon, label, value, onPress, disabled = false }: { icon: keyo
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" },
-  background: { flex: 1 },
-  backgroundImage: { opacity: 0.28 },
-  backgroundDark: { opacity: 0.1 },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" },
-  overlayDark: { backgroundColor: "rgba(0,0,0,0.86)" },
-  content: { paddingHorizontal: 20, paddingTop: 34, paddingBottom: 128 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
-  title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 },
-  subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 12, lineHeight: 20 },
-  sectionLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1.3, marginTop: 20, marginBottom: 9 },
-  settingsCard: { borderRadius: 24, paddingHorizontal: 14, backgroundColor: "rgba(10,10,10,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
-  settingRow: { minHeight: 58, flexDirection: "row", alignItems: "center" },
-  disabled: { opacity: 0.42 },
-  settingIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(224,184,67,0.09)", marginRight: 11 },
-  settingLabel: { flex: 1, color: "#fff", fontWeight: "800" },
-  settingMeta: { width: 112, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" },
-  settingValue: { color: "#C8C8C8", fontSize: 11, marginRight: 5, textAlign: "right" },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)", marginLeft: 49 },
-  updateCard: { padding: 16, borderRadius: 24, backgroundColor: "rgba(10,10,10,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
-  updateHeader: { flexDirection: "row", alignItems: "center" },
-  updateText: { flex: 1, marginLeft: 12 },
-  updateTitle: { color: "#fff", fontWeight: "900" },
-  updateSubtitle: { color: "#C8C8C8", fontSize: 11, marginTop: 4, lineHeight: 16 },
-  releaseNotes: { marginTop: 13, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.1)" },
-  releaseNotesTitle: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.1, marginBottom: 7 },
-  releaseNote: { color: "#D5D5D5", fontSize: 11, lineHeight: 17, marginBottom: 3 },
-  updateButton: { minHeight: 44, marginTop: 13, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold },
-  updateButtonText: { color: "#090909", fontSize: 12, fontWeight: "900" },
-  logoutButton: { minHeight: 48, borderRadius: 18, marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(130,20,20,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.22)" },
-  logoutText: { color: "#FF8585", fontWeight: "900" },
+  container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.28 }, backgroundDark: { opacity: 0.1 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" }, overlayDark: { backgroundColor: "rgba(0,0,0,0.86)" }, content: { paddingHorizontal: 20, paddingTop: 34, paddingBottom: 128 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 12, lineHeight: 20 }, sectionLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1.3, marginTop: 20, marginBottom: 9 }, settingsCard: { borderRadius: 24, paddingHorizontal: 14, backgroundColor: "rgba(10,10,10,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, settingRow: { minHeight: 58, flexDirection: "row", alignItems: "center" }, disabled: { opacity: 0.42 }, settingIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(224,184,67,0.09)", marginRight: 11 }, settingLabel: { flex: 1, color: "#fff", fontWeight: "800" }, settingMeta: { width: 112, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }, settingValue: { color: "#C8C8C8", fontSize: 11, marginRight: 5, textAlign: "right" }, separator: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)", marginLeft: 49 },
+  updateCard: { padding: 16, borderRadius: 24, backgroundColor: "rgba(10,10,10,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, updateHeader: { flexDirection: "row", alignItems: "center" }, updateText: { flex: 1, marginLeft: 12 }, updateTitle: { color: "#fff", fontWeight: "900" }, updateSubtitle: { color: "#C8C8C8", fontSize: 11, marginTop: 4, lineHeight: 16 }, releaseNotes: { marginTop: 13, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.1)" }, releaseNotesTitle: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.1, marginBottom: 7 }, releaseNote: { color: "#D5D5D5", fontSize: 11, lineHeight: 17, marginBottom: 3 }, updateButton: { minHeight: 44, marginTop: 13, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, updateButtonText: { color: "#090909", fontSize: 12, fontWeight: "900" }, logoutButton: { minHeight: 48, borderRadius: 18, marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(130,20,20,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.22)" }, logoutText: { color: "#FF8585", fontWeight: "900" },
 });

@@ -22,7 +22,7 @@ type GitHubRelease = {
 };
 
 export function getInstalledVersion() {
-  return Constants.expoConfig?.version ?? "0.0.0";
+  return Constants.nativeAppVersion ?? Constants.expoConfig?.version ?? "0.0.0";
 }
 
 export async function checkForAppUpdate(): Promise<AppUpdateInfo> {

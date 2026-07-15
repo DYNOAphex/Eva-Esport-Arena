@@ -14,7 +14,7 @@ function CenterAction({ focused }: { focused: boolean }) {
   return (
     <View style={[styles.centerGlow, focused && styles.centerGlowActive]}>
       <View style={styles.centerButton}>
-        <Ionicons name="add" size={34} color="#FFFFFF" />
+        <Ionicons name="add" size={30} color="#FFFFFF" />
       </View>
     </View>
   );
@@ -45,41 +45,41 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Theme.colors.goldLight,
         tabBarInactiveTintColor: "#929292",
         tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "800", marginTop: 2 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "800", marginTop: 1 },
         tabBarStyle: {
           position: "absolute",
           left: 14,
           right: 14,
           bottom: 10,
-          height: 72,
-          paddingTop: 8,
-          paddingBottom: 8,
+          height: 68,
+          paddingTop: 7,
+          paddingBottom: 7,
           borderRadius: 24,
-          backgroundColor: "rgba(7,7,7,0.97)",
-          borderTopWidth: StyleSheet.hairlineWidth,
+          backgroundColor: "rgba(7,7,7,0.985)",
+          borderTopWidth: 0,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: "rgba(255,255,255,0.14)",
+          borderColor: "rgba(255,255,255,0.1)",
           shadowColor: "#000000",
-          shadowOpacity: 0.22,
-          shadowRadius: 14,
+          shadowOpacity: 0.18,
+          shadowRadius: 12,
           shadowOffset: { width: 0, height: 4 },
-          elevation: 14,
+          elevation: 12,
         },
         tabBarItemStyle: { borderRadius: 20 },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={focused ? size + 2 : size} /> }} />
+      <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={focused ? size + 1 : size} /> }} />
       <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="planning" options={{ title: "Agenda", tabBarBadge: pendingCount || undefined, tabBarBadgeStyle: { backgroundColor: "#E84B4B", color: "#fff", fontSize: 9 }, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} color={color} size={focused ? size + 2 : size} /> }} />
+      <Tabs.Screen name="planning" options={{ title: "Agenda", tabBarBadge: pendingCount || undefined, tabBarBadgeStyle: { backgroundColor: "#E84B4B", color: "#fff", fontSize: 9 }, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} color={color} size={focused ? size + 1 : size} /> }} />
       <Tabs.Screen name="scrims" options={{ href: allowedToCreate ? "/scrims" : null, title: "", tabBarLabel: () => null, tabBarIcon: ({ focused }) => <CenterAction focused={focused} /> }} />
-      <Tabs.Screen name="team" options={{ title: "Équipe", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "people" : "people-outline"} color={color} size={focused ? size + 2 : size} /> }} />
-      <Tabs.Screen name="profile" options={{ title: "Plus", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "settings" : "settings-outline"} color={color} size={focused ? size + 2 : size} /> }} />
+      <Tabs.Screen name="team" options={{ title: "Équipe", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "people" : "people-outline"} color={color} size={focused ? size + 1 : size} /> }} />
+      <Tabs.Screen name="profile" options={{ title: "Plus", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "settings" : "settings-outline"} color={color} size={focused ? size + 1 : size} /> }} />
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  centerGlow: { width: 58, height: 58, borderRadius: 29, marginTop: -18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.56)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.38, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 16 },
-  centerGlowActive: { transform: [{ scale: 1.04 }], backgroundColor: "rgba(217,175,49,0.2)" },
-  centerButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.99)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.62)" },
+  centerGlow: { width: 52, height: 52, borderRadius: 26, marginTop: -15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.08)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.32)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.22, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 12 },
+  centerGlowActive: { transform: [{ scale: 1.03 }], backgroundColor: "rgba(217,175,49,0.14)" },
+  centerButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.99)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.42)" },
 });

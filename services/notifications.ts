@@ -10,9 +10,15 @@ export async function registerForPushNotificationsAsync() {
   let status = (await Notifications.getPermissionsAsync()).status;
   if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
   if (status !== "granted") return null;
+
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  if (!projectId) return null;
-  return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  if (!projectId) return "local-notifications-enabled";
+
+  try {
+    return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  } catch {
+    return "local-notifications-enabled";
+  }
 }
 
 export async function notifyMatchCreated({ type, opponent, date, arrivalTime, matchTime, arena }: { type: string; opponent: string; date: string; arrivalTime: string; matchTime: string; arena: string }) {

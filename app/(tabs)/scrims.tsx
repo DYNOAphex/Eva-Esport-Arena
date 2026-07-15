@@ -47,7 +47,7 @@ export default function ScrimsScreen() {
   async function handleSave() {
     if (!authorized) return;
     if (!opponent.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      Alert.alert("Informations incomplètes", "Indique l'équipe adverse et une date au format AAAA-MM-JJ.");
+      Alert.alert("Informations incomplètes", "Indique l'équipe adverse et sélectionne une date.");
       return;
     }
     try {
@@ -78,7 +78,7 @@ export default function ScrimsScreen() {
             <Label text="Équipe adverse" />
             <TextInput style={styles.input} placeholder="Ex. TITANS" placeholderTextColor="#777" value={opponent} onChangeText={setOpponent} autoCapitalize="characters" />
             <Label text="Date" />
-            <TextInput style={styles.input} placeholder="AAAA-MM-JJ" placeholderTextColor="#777" value={date} onChangeText={setDate} keyboardType="numbers-and-punctuation" />
+            <DateField value={date} onChange={setDate} />
             <Label text="Heure de rendez-vous" /><ClockField value={arrivalTime} onChange={setArrivalTime} />
             <Label text="Heure du match" /><ClockField value={matchTime} onChange={setMatchTime} />
             <Label text="Arène" />
@@ -96,6 +96,21 @@ export default function ScrimsScreen() {
 }
 
 function Label({ text }: { text: string }) { return <Text style={styles.label}>{text}</Text>; }
+function DateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [visible, setVisible] = useState(false);
+  const current = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : new Date();
+  function handleChange(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === "android") setVisible(false);
+    if (event.type === "dismissed" || !selected) return;
+    const year = selected.getFullYear();
+    const month = String(selected.getMonth() + 1).padStart(2, "0");
+    const day = String(selected.getDate()).padStart(2, "0");
+    onChange(`${year}-${month}-${day}`);
+  }
+  const label = value ? current.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) : "Choisir une date";
+  return <View><TouchableOpacity style={styles.selector} onPress={() => setVisible(true)}><Ionicons name="calendar-outline" size={20} color={Theme.colors.goldLight} /><Text style={[styles.selectorText, !value && styles.placeholder]}>{label}</Text><Ionicons name="chevron-forward" size={18} color="#888" /></TouchableOpacity>{visible ? <DateTimePicker value={current} mode="date" minimumDate={editIdSafeDate()} display={Platform.OS === "android" ? "calendar" : "spinner"} onChange={handleChange} /> : null}</View>;
+}
+function editIdSafeDate() { const today = new Date(); today.setHours(0, 0, 0, 0); return today; }
 function ClockField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [visible, setVisible] = useState(false);
   function handleChange(event: DateTimePickerEvent, selected?: Date) { if (Platform.OS === "android") setVisible(false); if (event.type === "dismissed" || !selected) return; onChange(`${selected.getHours().toString().padStart(2, "0")}:${selected.getMinutes().toString().padStart(2, "0")}`); }
@@ -104,7 +119,7 @@ function ClockField({ value, onChange }: { value: string; onChange: (value: stri
 }
 
 const styles = StyleSheet.create({
-  loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" }, loadingText: { color: "#D8D8D8" }, container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.6 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.62)" }, content: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 130 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 5 }, subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 22, lineHeight: 20 }, formCard: { padding: 18, borderRadius: 24, backgroundColor: "rgba(8,8,8,0.8)", borderWidth: 1, borderColor: "rgba(224,184,67,0.4)" }, label: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", marginTop: 14, marginBottom: 8 }, input: { minHeight: 50, borderRadius: 15, paddingHorizontal: 14, color: "#fff", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }, notes: { minHeight: 95, paddingTop: 13, textAlignVertical: "top" },
-  selector: { minHeight: 50, borderRadius: 15, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }, selectorText: { flex: 1, color: "#fff", fontWeight: "800" }, chipRow: { flexDirection: "row", gap: 10 }, statusWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, chip: { flex: 1, minHeight: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", paddingHorizontal: 8 }, chipActive: { backgroundColor: Theme.colors.goldLight, borderColor: Theme.colors.goldLight }, chipText: { color: "#ddd", fontWeight: "800", fontSize: 11 }, chipTextActive: { color: "#080808" }, saveButton: { minHeight: 54, borderRadius: 17, marginTop: 22, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Theme.colors.gold }, saveText: { color: "#080808", fontWeight: "900", letterSpacing: 0.3, fontSize: 11 },
+  loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" }, loadingText: { color: "#D8D8D8" }, container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.42 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.68)" }, content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 150 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 5 }, subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 22, lineHeight: 20 }, formCard: { padding: 18, borderRadius: 24, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, label: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", marginTop: 14, marginBottom: 8 }, input: { minHeight: 50, borderRadius: 15, paddingHorizontal: 14, color: "#fff", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, notes: { minHeight: 95, paddingTop: 13, textAlignVertical: "top" },
+  selector: { minHeight: 50, borderRadius: 15, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, selectorText: { flex: 1, color: "#fff", fontWeight: "800", textTransform: "capitalize" }, placeholder: { color: "#777" }, chipRow: { flexDirection: "row", gap: 10 }, statusWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 }, chip: { flex: 1, minHeight: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)", paddingHorizontal: 8 }, chipActive: { backgroundColor: Theme.colors.goldLight, borderColor: Theme.colors.goldLight }, chipText: { color: "#ddd", fontWeight: "800", fontSize: 11 }, chipTextActive: { color: "#080808" }, saveButton: { minHeight: 54, borderRadius: 17, marginTop: 22, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Theme.colors.gold }, saveText: { color: "#080808", fontWeight: "900", letterSpacing: 0.3, fontSize: 11 },
 });

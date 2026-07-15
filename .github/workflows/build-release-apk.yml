@@ -131,10 +131,22 @@ jobs:
             -keystore android/app/dyno-release.keystore \
             -storepass "$ANDROID_KEYSTORE_PASSWORD" \
             -alias "$ANDROID_KEY_ALIAS" >/dev/null 2>&1; then
-            echo "Le keystore est corrompu, incomplet, ou les secrets de signature sont incorrects."
-            echo "Recrée ANDROID_KEYSTORE_BASE64 directement depuis le fichier .jks complet."
+            echo "Le keystore est corrompu, incomplet, ou le mot de passe/alias du keystore est incorrect."
             exit 1
           fi
+
+          mkdir -p signing-test
+          printf 'DYNO signing test' > signing-test/test.txt
+          jar --create --file signing-test/test.jar -C signing-test test.txt
+          if ! jarsigner \
+            -keystore android/app/dyno-release.keystore \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" \
+            -keypass "$ANDROID_KEY_PASSWORD" \
+            signing-test/test.jar "$ANDROID_KEY_ALIAS" >/dev/null 2>&1; then
+            echo "Le secret ANDROID_KEY_PASSWORD est incorrect pour cette clé."
+            exit 1
+          fi
+          rm -rf signing-test
 
           node - <<'NODE'
           const fs = require('fs');

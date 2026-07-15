@@ -51,13 +51,19 @@
     "ios": {
       "bundleIdentifier": "com.dynoaphex.evaesportarena"
     },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/logo-dyno.png"
+    },
     "extra": {
       "eas": {
         "projectId": "fc6db2ba-e1c7-4ceb-b720-f97787f7425c"
       }
     },
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/Eva-Esport-Arena"
     }
   }
 }

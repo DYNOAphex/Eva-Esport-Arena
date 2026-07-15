@@ -1,30 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, ImageBackground, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, ImageBackground, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
 import { getAppSettings, updateAppSettings } from "../../services/appSettings";
 import { checkForAppUpdate, getInstalledVersion, openAppUpdate } from "../../services/appUpdateService";
-import { getStoredSession, logout } from "../../services/authService";
-import { getMatches, subscribeToMatches } from "../../services/matchStore";
+import { logout } from "../../services/authService";
 import { registerForPushNotificationsAsync } from "../../services/notifications";
 import type { AppearanceMode } from "../../services/appSettings";
 import type { AppUpdateInfo } from "../../services/appUpdateService";
-import type { AuthSession } from "../../services/authService";
-import type { Match } from "../../services/matchStore";
 
 const marbleSource = require("../../assets/images/background-marble.jpg");
-const logoSource = require("../../assets/images/logo-dyno.png");
-
-function displayNameFromEmail(email?: string) {
-  if (!email) return "MEMBRE DYNO";
-  return email.split("@")[0].replace(/[._-]+/g, " ").trim().toUpperCase() || "MEMBRE DYNO";
-}
 
 export default function ProfileScreen() {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [matches, setMatches] = useState<Match[]>([]);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [reminder24h, setReminder24h] = useState(true);
   const [reminder1h, setReminder1h] = useState(true);
@@ -34,8 +23,6 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     let active = true;
-    void getStoredSession().then((value) => active && setSession(value));
-    void getMatches().then((items) => active && setMatches(items));
     void getAppSettings().then((settings) => {
       if (!active) return;
       setNotificationsEnabled(settings.notificationsEnabled);
@@ -43,23 +30,8 @@ export default function ProfileScreen() {
       setReminder1h(settings.reminder1h);
       setAppearance(settings.appearance);
     });
-    const unsubscribe = subscribeToMatches(setMatches);
-    return () => { active = false; unsubscribe(); };
+    return () => { active = false; };
   }, []);
-
-  const stats = useMemo(() => {
-    const activeMatches = matches.filter((match) => match.status !== "Annulé");
-    const uid = session?.localId;
-    const responses = uid ? activeMatches.flatMap((match) => match.responses.filter((response) => response.uid === uid)) : [];
-    const available = responses.filter((response) => response.status === "Disponible").length;
-    const answered = responses.filter((response) => response.status !== "En attente").length;
-    return {
-      matches: activeMatches.length,
-      confirmed: activeMatches.filter((match) => match.status === "Confirmé").length,
-      presenceRate: answered ? Math.round((available / answered) * 100) : 0,
-      responseRate: activeMatches.length ? Math.round((answered / activeMatches.length) * 100) : 0,
-    };
-  }, [matches, session?.localId]);
 
   async function toggleNotifications() {
     if (notificationsEnabled) {
@@ -103,7 +75,9 @@ export default function ProfileScreen() {
       if (!info.updateAvailable) Alert.alert("DYNO est à jour", `Version installée : ${info.installedVersion}`);
     } catch (error) {
       Alert.alert("Mise à jour", error instanceof Error ? error.message : "Vérification impossible.");
-    } finally { setCheckingUpdate(false); }
+    } finally {
+      setCheckingUpdate(false);
+    }
   }
 
   function confirmLogout() {
@@ -119,26 +93,8 @@ export default function ProfileScreen() {
         <View style={[styles.overlay, appearance === "dark" && styles.overlayDark]} />
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
-          <Text style={styles.title}>Profil</Text>
-          <Text style={styles.subtitle}>Ton identité, tes statistiques et les réglages de l'application.</Text>
-
-          <View style={styles.profileCard}>
-            <Image source={logoSource} style={styles.avatar} />
-            <View style={styles.profileInfo}>
-              <Text style={styles.name}>{displayNameFromEmail(session?.email)}</Text>
-              <Text style={styles.email} numberOfLines={1}>{session?.email ?? "Session en cours de chargement"}</Text>
-              <View style={styles.onlineRow}><View style={styles.onlineDot} /><Text style={styles.onlineText}>Connecté automatiquement</Text></View>
-            </View>
-            <Ionicons name="diamond" size={22} color={Theme.colors.goldLight} />
-          </View>
-
-          <Text style={styles.sectionLabel}>STATISTIQUES RÉELLES</Text>
-          <View style={styles.statsGrid}>
-            <Stat icon="calendar" value={String(stats.matches)} label="Matchs" />
-            <Stat icon="shield-checkmark" value={String(stats.confirmed)} label="Confirmés" />
-            <Stat icon="checkmark-circle" value={`${stats.presenceRate}%`} label="Présence" period="Ce mois-ci" />
-            <Stat icon="chatbox-ellipses" value={`${stats.responseRate}%`} label="Réponses" period="Ce mois-ci" />
-          </View>
+          <Text style={styles.title}>Plus</Text>
+          <Text style={styles.subtitle}>Gérez les préférences et les réglages de l'application.</Text>
 
           <Text style={styles.sectionLabel}>RÉGLAGES</Text>
           <View style={styles.settingsCard}>
@@ -167,16 +123,13 @@ export default function ProfileScreen() {
           </View>
 
           <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={confirmLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#FF8585" /><Text style={styles.logoutText}>Se déconnecter</Text>
+            <Ionicons name="log-out-outline" size={20} color="#FF8585" />
+            <Text style={styles.logoutText}>Se déconnecter</Text>
           </TouchableOpacity>
         </ScrollView>
       </ImageBackground>
     </SafeAreaView>
   );
-}
-
-function Stat({ icon, value, label, period }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string; period?: string }) {
-  return <View style={styles.statCard}><Ionicons name={icon} size={22} color={Theme.colors.goldLight} /><Text style={styles.statValue}>{value}</Text><Text style={styles.statLabel}>{label}</Text>{period ? <Text style={styles.statPeriod}>{period}</Text> : null}</View>;
 }
 
 function Setting({ icon, label, value, onPress, disabled = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; onPress: () => void; disabled?: boolean }) {
@@ -193,21 +146,8 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 34, paddingBottom: 128 },
   kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
   title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 },
-  subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 18, lineHeight: 20 },
-  profileCard: { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 24, backgroundColor: "rgba(10,10,10,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(224,184,67,0.22)" },
-  avatar: { width: 64, height: 64, borderRadius: 20, marginRight: 14 },
-  profileInfo: { flex: 1 },
-  name: { color: "#fff", fontSize: 22, fontWeight: "900" },
-  email: { color: Theme.colors.goldLight, fontSize: 11, marginTop: 5, maxWidth: 210 },
-  onlineRow: { flexDirection: "row", alignItems: "center", marginTop: 8 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#4AD45E", marginRight: 6 },
-  onlineText: { color: "#C8C8C8", fontSize: 11 },
+  subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 12, lineHeight: 20 },
   sectionLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1.3, marginTop: 20, marginBottom: 9 },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  statCard: { width: "48.4%", minHeight: 116, borderRadius: 24, alignItems: "center", justifyContent: "center", marginBottom: 10, backgroundColor: "rgba(10,10,10,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
-  statValue: { color: "#fff", fontSize: 27, fontWeight: "900", marginTop: 6 },
-  statLabel: { color: "#D7D7D7", fontSize: 11, marginTop: 2 },
-  statPeriod: { color: "#C8C8C8", fontSize: 10, marginTop: 5 },
   settingsCard: { borderRadius: 24, paddingHorizontal: 14, backgroundColor: "rgba(10,10,10,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
   settingRow: { minHeight: 58, flexDirection: "row", alignItems: "center" },
   disabled: { opacity: 0.42 },

@@ -14,7 +14,7 @@ function CenterAction({ focused }: { focused: boolean }) {
   return (
     <View style={[styles.centerGlow, focused && styles.centerGlowActive]}>
       <View style={styles.centerButton}>
-        <Ionicons name="add" size={38} color="#FFFFFF" />
+        <Ionicons name="add" size={34} color="#FFFFFF" />
       </View>
     </View>
   );
@@ -51,27 +51,27 @@ export default function TabsLayout() {
           left: 14,
           right: 14,
           bottom: 10,
-          height: 76,
+          height: 72,
           paddingTop: 8,
           paddingBottom: 8,
-          borderRadius: 30,
-          backgroundColor: "rgba(7,7,7,0.96)",
-          borderTopWidth: 1,
-          borderWidth: 1,
-          borderColor: "rgba(224,184,67,0.42)",
-          shadowColor: Theme.colors.gold,
-          shadowOpacity: 0.28,
-          shadowRadius: 22,
-          shadowOffset: { width: 0, height: 0 },
-          elevation: 18,
+          borderRadius: 24,
+          backgroundColor: "rgba(7,7,7,0.97)",
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: "rgba(255,255,255,0.14)",
+          shadowColor: "#000000",
+          shadowOpacity: 0.22,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 14,
         },
-        tabBarItemStyle: { borderRadius: 22 },
+        tabBarItemStyle: { borderRadius: 20 },
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={focused ? size + 2 : size} /> }} />
       <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="planning" options={{ title: "Agenda", tabBarBadge: pendingCount || undefined, tabBarBadgeStyle: { backgroundColor: "#E84B4B", color: "#fff", fontSize: 9 }, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} color={color} size={focused ? size + 2 : size} /> }} />
-      <Tabs.Screen name="scrims" options={{ href: allowedToCreate ? "/scrims" : null, title: "Scrims", tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 10 }, tabBarIcon: ({ focused }) => <CenterAction focused={focused} /> }} />
+      <Tabs.Screen name="scrims" options={{ href: allowedToCreate ? "/scrims" : null, title: "", tabBarLabel: () => null, tabBarIcon: ({ focused }) => <CenterAction focused={focused} /> }} />
       <Tabs.Screen name="team" options={{ title: "Équipe", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "people" : "people-outline"} color={color} size={focused ? size + 2 : size} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Plus", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "settings" : "settings-outline"} color={color} size={focused ? size + 2 : size} /> }} />
     </Tabs>
@@ -79,7 +79,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  centerGlow: { width: 66, height: 66, borderRadius: 33, marginTop: -23, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.18)", borderWidth: 1, borderColor: "rgba(241,205,97,0.7)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.75, shadowRadius: 18, shadowOffset: { width: 0, height: 0 }, elevation: 20 },
-  centerGlowActive: { transform: [{ scale: 1.05 }], backgroundColor: "rgba(217,175,49,0.28)" },
-  centerButton: { width: 54, height: 54, borderRadius: 27, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.98)", borderWidth: 1, borderColor: "rgba(255,224,122,0.72)" },
+  centerGlow: { width: 58, height: 58, borderRadius: 29, marginTop: -18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.56)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.38, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 16 },
+  centerGlowActive: { transform: [{ scale: 1.04 }], backgroundColor: "rgba(217,175,49,0.2)" },
+  centerButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.99)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.62)" },
 });

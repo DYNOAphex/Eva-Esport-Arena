@@ -17,6 +17,12 @@ export default function RootLayout() {
         manifest.setAttribute("href", "/Eva-Esport-Arena/manifest.json");
         if (!manifest.parentNode) document.head.appendChild(manifest);
 
+        const appleIcon = document.querySelector('link[rel="apple-touch-icon"]') ?? document.createElement("link");
+        appleIcon.setAttribute("rel", "apple-touch-icon");
+        appleIcon.setAttribute("sizes", "512x512");
+        appleIcon.setAttribute("href", "/Eva-Esport-Arena/pwa-512.png");
+        if (!appleIcon.parentNode) document.head.appendChild(appleIcon);
+
         let appleMeta = document.querySelector('meta[name="apple-mobile-web-app-capable"]');
         if (!appleMeta) {
           appleMeta = document.createElement("meta");

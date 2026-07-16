@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, ImageBackground, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ImageBackground, Linking, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
 import { getAppSettings, updateAppSettings } from "../../services/appSettings";
@@ -21,6 +21,7 @@ export default function ProfileScreen() {
   const [confirmationThreshold, setConfirmationThreshold] = useState(4);
   const [updateInfo, setUpdateInfo] = useState<AppUpdateInfo | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [activatingPush, setActivatingPush] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -36,6 +37,25 @@ export default function ProfileScreen() {
   }, []);
 
   async function toggleNotifications() {
+    if (Platform.OS === "web") {
+      try {
+        setActivatingPush(true);
+        const subscription = await registerForPushNotificationsAsync();
+        if (!subscription) {
+          Alert.alert("Notifications web", "L'autorisation a été refusée ou DYNO n'est pas installé depuis l'écran d'accueil.");
+          return;
+        }
+        const settings = await updateAppSettings({ notificationsEnabled: true });
+        setNotificationsEnabled(settings.notificationsEnabled);
+        Alert.alert("Notifications activées", "Cet appareil est maintenant enregistré pour recevoir les notifications DYNO.");
+      } catch (error) {
+        Alert.alert("Notifications web", error instanceof Error ? error.message : "Activation impossible sur cet appareil.");
+      } finally {
+        setActivatingPush(false);
+      }
+      return;
+    }
+
     if (notificationsEnabled) {
       const settings = await updateAppSettings({ notificationsEnabled: false });
       setNotificationsEnabled(settings.notificationsEnabled);
@@ -45,7 +65,7 @@ export default function ProfileScreen() {
     if (permission) {
       const settings = await updateAppSettings({ notificationsEnabled: true });
       setNotificationsEnabled(settings.notificationsEnabled);
-      Alert.alert("Notifications activées", "Les notifications locales DYNO sont actives.");
+      Alert.alert("Notifications activées", "Les notifications DYNO sont actives sur cet appareil.");
       return;
     }
     Alert.alert("Autoriser les notifications", "Android bloque les notifications DYNO.", [
@@ -54,27 +74,13 @@ export default function ProfileScreen() {
     ]);
   }
 
-  async function toggleReminder24h() {
-    const settings = await updateAppSettings({ reminder24h: !reminder24h });
-    setReminder24h(settings.reminder24h);
-  }
-
-  async function toggleReminder1h() {
-    const settings = await updateAppSettings({ reminder1h: !reminder1h });
-    setReminder1h(settings.reminder1h);
-  }
-
-  async function toggleAppearance() {
-    const settings = await updateAppSettings({ appearance: appearance === "gold" ? "dark" : "gold" });
-    setAppearance(settings.appearance);
-  }
+  async function toggleReminder24h() { const settings = await updateAppSettings({ reminder24h: !reminder24h }); setReminder24h(settings.reminder24h); }
+  async function toggleReminder1h() { const settings = await updateAppSettings({ reminder1h: !reminder1h }); setReminder1h(settings.reminder1h); }
+  async function toggleAppearance() { const settings = await updateAppSettings({ appearance: appearance === "gold" ? "dark" : "gold" }); setAppearance(settings.appearance); }
 
   function chooseThreshold() {
     Alert.alert("Confirmation automatique", "Nombre minimum de joueurs disponibles", [
-      ...[3, 4, 5, 6].map((value) => ({
-        text: `${value} joueurs${value === confirmationThreshold ? " ✓" : ""}`,
-        onPress: () => void updateAppSettings({ confirmationThreshold: value }).then((settings) => setConfirmationThreshold(settings.confirmationThreshold)),
-      })),
+      ...[3, 4, 5, 6].map((value) => ({ text: `${value} joueurs${value === confirmationThreshold ? " ✓" : ""}`, onPress: () => void updateAppSettings({ confirmationThreshold: value }).then((settings) => setConfirmationThreshold(settings.confirmationThreshold)) })),
       { text: "Fermer", style: "cancel" },
     ]);
   }
@@ -87,9 +93,7 @@ export default function ProfileScreen() {
       if (!info.updateAvailable) Alert.alert("DYNO est à jour", `Version installée : ${info.installedVersion}`);
     } catch (error) {
       Alert.alert("Mise à jour", error instanceof Error ? error.message : "Vérification impossible.");
-    } finally {
-      setCheckingUpdate(false);
-    }
+    } finally { setCheckingUpdate(false); }
   }
 
   function confirmLogout() {
@@ -110,7 +114,7 @@ export default function ProfileScreen() {
 
           <Text style={styles.sectionLabel}>RÉGLAGES</Text>
           <View style={styles.settingsCard}>
-            <Setting icon="notifications-outline" label="Notifications" value={notificationsEnabled ? "Activées" : "Désactivées"} onPress={() => void toggleNotifications()} />
+            <Setting icon="notifications-outline" label={Platform.OS === "web" ? "Notifications sur cet appareil" : "Notifications"} value={activatingPush ? "Activation…" : Platform.OS === "web" ? "Activer" : notificationsEnabled ? "Activées" : "Désactivées"} onPress={() => void toggleNotifications()} />
             <View style={styles.separator} />
             <Setting icon="time-outline" label="Rappel 24 h avant" value={reminder24h ? "Activé" : "Désactivé"} disabled={!notificationsEnabled} onPress={() => void toggleReminder24h()} />
             <View style={styles.separator} />
@@ -123,23 +127,12 @@ export default function ProfileScreen() {
 
           <Text style={styles.sectionLabel}>MISE À JOUR</Text>
           <View style={styles.updateCard}>
-            <View style={styles.updateHeader}>
-              <Ionicons name="cloud-download-outline" size={24} color={Theme.colors.goldLight} />
-              <View style={styles.updateText}>
-                <Text style={styles.updateTitle}>Version installée : {getInstalledVersion()}</Text>
-                <Text style={styles.updateSubtitle}>{updateInfo?.updateAvailable ? `Version ${updateInfo.latestVersion} disponible` : "Vérifiez si une nouvelle version de DYNO est disponible."}</Text>
-              </View>
-            </View>
+            <View style={styles.updateHeader}><Ionicons name="cloud-download-outline" size={24} color={Theme.colors.goldLight} /><View style={styles.updateText}><Text style={styles.updateTitle}>Version installée : {getInstalledVersion()}</Text><Text style={styles.updateSubtitle}>{updateInfo?.updateAvailable ? `Version ${updateInfo.latestVersion} disponible` : "Vérifiez si une nouvelle version de DYNO est disponible."}</Text></View></View>
             {updateInfo?.releaseNotes.length ? <View style={styles.releaseNotes}><Text style={styles.releaseNotesTitle}>NOUVEAUTÉS</Text>{updateInfo.releaseNotes.map((note, index) => <Text key={`${note}-${index}`} style={styles.releaseNote}>• {note}</Text>)}</View> : null}
-            <TouchableOpacity style={styles.updateButton} onPress={() => updateInfo?.updateAvailable ? void openAppUpdate(updateInfo) : void checkUpdate()}>
-              <Text style={styles.updateButtonText}>{updateInfo?.updateAvailable ? "Télécharger la mise à jour" : checkingUpdate ? "Vérification…" : "Vérifier les mises à jour"}</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.updateButton} onPress={() => updateInfo?.updateAvailable ? void openAppUpdate(updateInfo) : void checkUpdate()}><Text style={styles.updateButtonText}>{updateInfo?.updateAvailable ? "Télécharger la mise à jour" : checkingUpdate ? "Vérification…" : "Vérifier les mises à jour"}</Text></TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={confirmLogout}>
-            <Ionicons name="log-out-outline" size={20} color="#FF8585" />
-            <Text style={styles.logoutText}>Se déconnecter</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} activeOpacity={0.85} onPress={confirmLogout}><Ionicons name="log-out-outline" size={20} color="#FF8585" /><Text style={styles.logoutText}>Se déconnecter</Text></TouchableOpacity>
         </ScrollView>
       </ImageBackground>
     </SafeAreaView>

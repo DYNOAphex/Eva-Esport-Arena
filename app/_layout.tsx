@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import WebInstallPrompt from "../components/WebInstallPrompt";
 import { Theme } from "../constants/theme";
 import { getAppSettings } from "../services/appSettings";
 import { registerForPushNotificationsAsync } from "../services/notifications";
@@ -55,6 +56,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: Theme.colors.background },
         }}
       />
+      <WebInstallPrompt />
     </SafeAreaProvider>
   );
 }

@@ -1,4 +1,4 @@
-name: Discord new match notification
+name: Discord and push notifications
 
 on:
   schedule:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: discord-new-match-notification
+  group: dyno-notifications
   cancel-in-progress: false
 
 jobs:
@@ -30,16 +30,12 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EVA_ESPORT_ARENA }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
         run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "Secret manquant: FIREBASE_SERVICE_ACCOUNT_EVA_ESPORT_ARENA"
-            exit 1
-          fi
-          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "Secret manquant: DISCORD_WEBHOOK_URL"
-            exit 1
-          fi
-          echo "Secrets Firebase et Discord présents."
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || { echo "Secret manquant: FIREBASE_SERVICE_ACCOUNT_EVA_ESPORT_ARENA"; exit 1; }
+          test -n "$DISCORD_WEBHOOK_URL" || { echo "Secret manquant: DISCORD_WEBHOOK_URL"; exit 1; }
+          test -n "$VAPID_PRIVATE_KEY" || { echo "Secret manquant: VAPID_PRIVATE_KEY"; exit 1; }
+          echo "Secrets Firebase, Discord et Web Push présents."
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -55,3 +51,6 @@ jobs:
         working-directory: automation
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VAPID_PUBLIC_KEY: BAbabRr4zuSW_0C-WA7vJtGXUFsafj4tgTmrbGiWlSFQQzsyg1Ec7BAkJxxWd14JF0hx60vfULSbq6UZ-rdVY8M
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: mailto:dyno-esport-manager@users.noreply.github.com

@@ -12,9 +12,10 @@ export type Availability = "Disponible" | "Indisponible" | "En attente";
 export type PlayerResponse = { uid?: string; player: string; status: Availability };
 export type Match = {
   id: string; type: MatchType; opponent: string; date: string; arrivalTime: string; matchTime: string; arena: MatchArena; status: MatchStatus;
-  notes?: string; responses: PlayerResponse[]; createdAt: string; createdBy?: string; discordNotificationPending?: boolean; discordNotifiedAt?: string;
+  notes?: string; responses: PlayerResponse[]; createdAt: string; createdBy?: string;
+  discordNotificationPending?: boolean; discordNotifiedAt?: string; pushNotifiedAt?: string;
 };
-export type MatchInput = Omit<Match, "id" | "createdAt" | "responses" | "createdBy" | "discordNotificationPending" | "discordNotifiedAt">;
+export type MatchInput = Omit<Match, "id" | "createdAt" | "responses" | "createdBy" | "discordNotificationPending" | "discordNotifiedAt" | "pushNotifiedAt">;
 
 type FirestoreValue = { stringValue: string } | { booleanValue: boolean } | { arrayValue: { values?: FirestoreValue[] } } | { mapValue: { fields?: Record<string, FirestoreValue> } };
 type FirestoreDocument = { name: string; fields?: Record<string, FirestoreValue> };
@@ -35,7 +36,11 @@ function playerNameFromEmail(email: string) { return email.split("@")[0] || "Jou
 function stringValue(value: unknown): FirestoreValue { return { stringValue: String(value ?? "") }; }
 function responseToFirestore(response: PlayerResponse): FirestoreValue { return { mapValue: { fields: { uid: stringValue(response.uid ?? ""), player: stringValue(response.player), status: stringValue(response.status) } } }; }
 function matchToFields(match: Match): Record<string, FirestoreValue> {
-  return { type: stringValue(match.type), opponent: stringValue(match.opponent), date: stringValue(match.date), arrivalTime: stringValue(match.arrivalTime), matchTime: stringValue(match.matchTime), arena: stringValue(match.arena), status: stringValue(match.status), notes: stringValue(match.notes ?? ""), createdAt: stringValue(match.createdAt), createdBy: stringValue(match.createdBy ?? ""), discordNotificationPending: { booleanValue: match.discordNotificationPending === true }, discordNotifiedAt: stringValue(match.discordNotifiedAt ?? ""), responses: { arrayValue: { values: match.responses.map(responseToFirestore) } } };
+  return {
+    type: stringValue(match.type), opponent: stringValue(match.opponent), date: stringValue(match.date), arrivalTime: stringValue(match.arrivalTime), matchTime: stringValue(match.matchTime), arena: stringValue(match.arena), status: stringValue(match.status), notes: stringValue(match.notes ?? ""), createdAt: stringValue(match.createdAt), createdBy: stringValue(match.createdBy ?? ""),
+    discordNotificationPending: { booleanValue: match.discordNotificationPending === true }, discordNotifiedAt: stringValue(match.discordNotifiedAt ?? ""), pushNotifiedAt: stringValue(match.pushNotifiedAt ?? ""),
+    responses: { arrayValue: { values: match.responses.map(responseToFirestore) } },
+  };
 }
 function readString(value?: FirestoreValue) { return value && "stringValue" in value ? value.stringValue : ""; }
 function readBoolean(value?: FirestoreValue) { return Boolean(value && "booleanValue" in value && value.booleanValue); }
@@ -44,17 +49,30 @@ function documentToMatch(document: FirestoreDocument): Match {
   const responseValues = fields.responses && "arrayValue" in fields.responses ? fields.responses.arrayValue.values ?? [] : [];
   const responses = responseValues.map((value): PlayerResponse => { const responseFields = "mapValue" in value ? value.mapValue.fields ?? {} : {}; const status = readString(responseFields.status); return { uid: readString(responseFields.uid) || undefined, player: readString(responseFields.player) || "Joueur DYNO", status: status === "Disponible" || status === "Indisponible" ? status : "En attente" }; });
   const type = readString(fields.type); const arena = readString(fields.arena); const status = readString(fields.status);
-  return { id: document.name.split("/").pop() ?? `${Date.now()}`, type: type === "Division" ? "Division" : "Scrim", opponent: readString(fields.opponent) || "Adversaire", date: readString(fields.date), arrivalTime: readString(fields.arrivalTime) || "19:30", matchTime: readString(fields.matchTime) || "20:00", arena: arena === "Arène 2" ? "Arène 2" : "Arène 1", status: status === "Confirmé" || status === "Annulé" ? status : "En attente", notes: readString(fields.notes), createdAt: readString(fields.createdAt) || new Date().toISOString(), createdBy: readString(fields.createdBy) || undefined, discordNotificationPending: readBoolean(fields.discordNotificationPending), discordNotifiedAt: readString(fields.discordNotifiedAt) || undefined, responses };
+  return { id: document.name.split("/").pop() ?? `${Date.now()}`, type: type === "Division" ? "Division" : "Scrim", opponent: readString(fields.opponent) || "Adversaire", date: readString(fields.date), arrivalTime: readString(fields.arrivalTime) || "19:30", matchTime: readString(fields.matchTime) || "20:00", arena: arena === "Arène 2" ? "Arène 2" : "Arène 1", status: status === "Confirmé" || status === "Annulé" ? status : "En attente", notes: readString(fields.notes), createdAt: readString(fields.createdAt) || new Date().toISOString(), createdBy: readString(fields.createdBy) || undefined, discordNotificationPending: readBoolean(fields.discordNotificationPending), discordNotifiedAt: readString(fields.discordNotifiedAt) || undefined, pushNotifiedAt: readString(fields.pushNotifiedAt) || undefined, responses };
 }
 async function firestoreRequest(url: string, init: RequestInit = {}) { const session = await requireUser(); return fetch(url, { ...init, headers: { Authorization: `Bearer ${session.idToken}`, "Content-Type": "application/json", ...(init.headers ?? {}) } }); }
 async function fetchCloudMatches() { const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`); if (!response.ok) throw new Error("Synchronisation Firebase impossible."); const data = (await response.json()) as { documents?: FirestoreDocument[] }; return sortMatches((data.documents ?? []).map(documentToMatch)); }
 async function uploadMatch(match: Match) { const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(match.id)}`, { method: "PATCH", body: JSON.stringify({ fields: matchToFields(match) }) }); if (!response.ok) throw new Error("Enregistrement Firebase impossible."); }
-async function syncFromCloud() { if (syncInProgress) return latestMatches; syncInProgress = true; try { const cloud = await fetchCloudMatches(); const local = await readStoredMatches(); if (!cloud.length && local.length) { await Promise.all(local.map(uploadMatch)); return persist(local); } return persist(cloud); } catch { const local = await readStoredMatches(); latestMatches = local; return local; } finally { syncInProgress = false; } }
+async function syncFromCloud() {
+  if (syncInProgress) return latestMatches;
+  syncInProgress = true;
+  try {
+    const cloud = await fetchCloudMatches();
+    return persist(cloud);
+  } catch {
+    const local = await readStoredMatches();
+    latestMatches = local;
+    return local;
+  } finally {
+    syncInProgress = false;
+  }
+}
 
 export async function getMatches() { const local = await readStoredMatches(); latestMatches = local; void syncFromCloud(); return local; }
 export async function getMatch(matchId: string) { const matches = await fetchCloudMatches().catch(readStoredMatches); return matches.find((match) => match.id === matchId) ?? null; }
 export async function createMatch(input: MatchInput) { const user = await requireUser(); const matches = await readStoredMatches(); const match: Match = { ...input, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), createdBy: user.localId, discordNotificationPending: true, responses: [] }; await uploadMatch(match); await persist([...matches, match]); return match; }
-export async function updateMatch(matchId: string, patch: Partial<MatchInput>) { await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const current = matches.find((match) => match.id === matchId); if (!current) throw new Error("Ce match n'existe plus."); const changed: Match = { ...current, ...patch, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy }; await uploadMatch(changed); await persist(matches.map((match) => match.id === matchId ? changed : match)); return changed; }
+export async function updateMatch(matchId: string, patch: Partial<MatchInput>) { await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const current = matches.find((match) => match.id === matchId); if (!current) throw new Error("Ce match n'existe plus."); const changed: Match = { ...current, ...patch, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy, discordNotificationPending: current.discordNotificationPending, discordNotifiedAt: current.discordNotifiedAt, pushNotifiedAt: current.pushNotifiedAt }; await uploadMatch(changed); await persist(matches.map((match) => match.id === matchId ? changed : match)); return changed; }
 export async function duplicateMatch(matchId: string) { const original = await getMatch(matchId); if (!original) throw new Error("Ce match n'existe plus."); return createMatch({ type: original.type, opponent: original.opponent, date: original.date, arrivalTime: original.arrivalTime, matchTime: original.matchTime, arena: original.arena, status: "En attente", notes: original.notes }); }
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {
   const user = await requireUser();
@@ -73,6 +91,6 @@ export async function setMatchAvailability(matchId: string, availability: Exclud
   if (!changed) throw new Error("Ce match n'existe plus.");
   await uploadMatch(changed); await persist(updated);
 }
-export async function deleteMatch(matchId: string) { await requireUser(); const matches = await readStoredMatches(); const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(matchId)}`, { method: "DELETE" }); if (!response.ok && response.status !== 404) throw new Error("Suppression Firebase impossible."); await persist(matches.filter((match) => match.id !== matchId)); }
+export async function deleteMatch(matchId: string) { await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(matchId)}`, { method: "DELETE" }); if (!response.ok && response.status !== 404) throw new Error("Suppression Firebase impossible."); await persist(matches.filter((match) => match.id !== matchId)); }
 export function subscribeToMatches(listener: (matches: Match[]) => void) { listeners.add(listener); if (latestMatches.length) listener(latestMatches); void syncFromCloud(); if (!pollTimer) pollTimer = setInterval(() => void syncFromCloud(), 5000); return () => { listeners.delete(listener); if (!listeners.size && pollTimer) { clearInterval(pollTimer); pollTimer = null; } }; }
 export function toMatchDate(match: Pick<Match, "date" | "matchTime">) { const value = new Date(`${match.date}T${match.matchTime}:00`); return Number.isNaN(value.getTime()) ? null : value; }

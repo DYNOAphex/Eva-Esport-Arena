@@ -1,96 +1,85 @@
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { configureWebPush, sendWebPushNotifications } from "./web-push.mjs";
 
 const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
 if (!webhookUrl) throw new Error("Missing DISCORD_WEBHOOK_URL secret.");
+configureWebPush();
 
 initializeApp({ credential: applicationDefault(), projectId: "eva-esport-arena" });
 const db = getFirestore();
-const [matchSnapshot, userSnapshot] = await Promise.all([
+const [matchSnapshot, userSnapshot, webSnapshot] = await Promise.all([
   db.collection("matches").limit(100).get(),
   db.collection("users").limit(100).get(),
+  db.collectionGroup("webPushSubscriptions").limit(200).get(),
 ]);
 const today = todayInParis();
-const pushTokens = [...new Set(userSnapshot.docs.map((doc) => doc.data().expoPushToken).filter((token) => typeof token === "string" && /^(Exponent|Expo)PushToken\[/.test(token)))];
+const expoTokens = [...new Set(userSnapshot.docs.map((doc) => doc.data().expoPushToken).filter((token) => typeof token === "string" && /^(Exponent|Expo)PushToken\[/.test(token)))];
+const webSubscriptions = webSnapshot.docs.map((doc) => ({ ref: doc.ref, subscription: { endpoint: doc.data().endpoint, keys: { p256dh: doc.data().p256dh, auth: doc.data().auth } } })).filter((item) => item.subscription.endpoint && item.subscription.keys.p256dh && item.subscription.keys.auth);
 
 console.log(`Firestore matches found: ${matchSnapshot.size}.`);
-console.log(`Expo push tokens found: ${pushTokens.length}.`);
+console.log(`Expo push tokens found: ${expoTokens.length}.`);
+console.log(`Web Push subscriptions found: ${webSubscriptions.length}.`);
 
-const discordDocuments = matchSnapshot.docs.filter((doc) => shouldDiscordNotify(doc.data(), today)).sort(sortByCreatedAt).slice(0, 20);
-const pushDocuments = matchSnapshot.docs.filter((doc) => shouldPushNotify(doc.data(), today)).sort(sortByCreatedAt).slice(0, 20);
+const discordDocs = pending("discordNotifiedAt");
+const mobileDocs = pending("pushNotifiedAt");
+const webDocs = pending("webPushNotifiedAt");
 
-console.log(`Discord announcements pending: ${discordDocuments.length}.`);
-console.log(`Mobile push announcements pending: ${pushDocuments.length}.`);
-
-for (const document of discordDocuments) {
+for (const document of discordDocs) {
   try {
     await sendDiscordNotification(document.data());
     await document.ref.update({ discordNotificationPending: false, discordNotifiedAt: new Date().toISOString() });
     console.log(`Discord announcement sent for match ${document.id}.`);
-  } catch (error) {
-    console.error(`Failed to notify Discord for match ${document.id}.`, error);
-    process.exitCode = 1;
-  }
+  } catch (error) { console.error(error); process.exitCode = 1; }
 }
 
-if (!pushTokens.length && pushDocuments.length) {
-  console.log("No Expo push token registered yet; mobile pushes remain pending.");
-} else {
-  for (const document of pushDocuments) {
-    try {
-      await sendExpoPushNotifications(document.data(), pushTokens);
-      await document.ref.update({ pushNotifiedAt: new Date().toISOString() });
-      console.log(`Mobile push sent for match ${document.id} to ${pushTokens.length} device(s).`);
-    } catch (error) {
-      console.error(`Failed to send mobile push for match ${document.id}.`, error);
-      process.exitCode = 1;
-    }
-  }
+if (!expoTokens.length && mobileDocs.length) console.log("No Expo push token registered yet; mobile pushes remain pending.");
+for (const document of expoTokens.length ? mobileDocs : []) {
+  try {
+    await sendExpoPushNotifications(document.data(), expoTokens);
+    await document.ref.update({ pushNotifiedAt: new Date().toISOString() });
+    console.log(`Mobile push sent for match ${document.id} to ${expoTokens.length} device(s).`);
+  } catch (error) { console.error(error); process.exitCode = 1; }
 }
 
-if (!discordDocuments.length) console.log("No pending Discord announcements.");
-if (!pushDocuments.length) console.log("No pending mobile push announcements.");
+if (!webSubscriptions.length && webDocs.length) console.log("No Web Push subscription registered yet; web pushes remain pending.");
+for (const document of webSubscriptions.length ? webDocs : []) {
+  try {
+    const sent = await sendWebPushNotifications(document.data(), webSubscriptions);
+    await document.ref.update({ webPushNotifiedAt: new Date().toISOString() });
+    console.log(`Web Push sent for match ${document.id} to ${sent} device(s).`);
+  } catch (error) { console.error(error); process.exitCode = 1; }
+}
 
-function shouldDiscordNotify(match, todayValue) {
-  if (typeof match.discordNotifiedAt === "string" && match.discordNotifiedAt.trim()) return false;
-  return isEligible(match, todayValue) || match.discordNotificationPending === true;
+function pending(field) {
+  return matchSnapshot.docs.filter((doc) => shouldNotify(doc.data(), field)).sort((a, b) => dateValue(a.data().createdAt) - dateValue(b.data().createdAt)).slice(0, 20);
 }
-function shouldPushNotify(match, todayValue) {
-  if (typeof match.pushNotifiedAt === "string" && match.pushNotifiedAt.trim()) return false;
-  return isEligible(match, todayValue);
-}
-function isEligible(match, todayValue) {
+function shouldNotify(match, field) {
+  if (typeof match[field] === "string" && match[field].trim()) return false;
   if (match.status === "Annulé") return false;
-  const matchDate = typeof match.date === "string" ? match.date.trim() : "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(matchDate) && matchDate >= todayValue) return true;
+  const date = typeof match.date === "string" ? match.date.trim() : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today) return true;
   const createdAt = new Date(match.createdAt);
   return !Number.isNaN(createdAt.getTime()) && createdAt.getTime() >= Date.now() - 7 * 86400000;
 }
 async function sendExpoPushNotifications(match, tokens) {
   const title = `🟡 Nouveau ${stringOr(match.type, "match").toLowerCase()} DYNO`;
-  const body = `VS ${stringOr(match.opponent, "Adversaire")} • ${formatShortDate(stringOr(match.date, ""))} • RDV ${stringOr(match.arrivalTime, "?")} • Match ${stringOr(match.matchTime, "?")} • ${stringOr(match.arena, "")}`;
-  const messages = tokens.map((to) => ({ to, title, body, sound: "default", channelId: "matches", priority: "high", data: { type: "match-created" } }));
-  const response = await fetch("https://exp.host/--/api/v2/push/send", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(messages) });
-  if (!response.ok) throw new Error(`Expo push failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
-  console.log("Expo push response:", JSON.stringify(await response.json()));
+  const body = `VS ${stringOr(match.opponent, "Adversaire")} • ${shortDate(match.date)} • RDV ${stringOr(match.arrivalTime, "?")} • Match ${stringOr(match.matchTime, "?")} • ${stringOr(match.arena, "")}`;
+  const response = await fetch("https://exp.host/--/api/v2/push/send", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(tokens.map((to) => ({ to, title, body, sound: "default", channelId: "matches", priority: "high" }))) });
+  if (!response.ok) throw new Error(`Expo push failed (${response.status})`);
 }
 async function sendDiscordNotification(match) {
-  const type = stringOr(match.type, "match").toLowerCase();
-  const opponent = stringOr(match.opponent, "Adversaire");
   const fields = [
-    { name: "📅 Date", value: formatFrenchDate(stringOr(match.date, "Date à confirmer")), inline: false },
+    { name: "📅 Date", value: longDate(match.date), inline: false },
     { name: "⏰ Rendez-vous", value: stringOr(match.arrivalTime, "À confirmer"), inline: true },
     { name: "🎮 Match", value: stringOr(match.matchTime, "À confirmer"), inline: true },
-    { name: "🏟 Arène", value: stringOr(match.arena, "Arène à confirmer"), inline: true },
+    { name: "🏟 Arène", value: stringOr(match.arena, "À confirmer"), inline: true },
   ];
-  const notes = stringOr(match.notes, "").trim();
-  if (notes) fields.push({ name: "📝 Notes", value: notes.slice(0, 1024), inline: false });
-  const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "DYNO Esport Manager", allowed_mentions: { parse: [] }, embeds: [{ title: `🏆 Nouveau ${type} DYNO`, description: `**DYNO 🆚 ${opponent}**`, color: 13938487, fields, footer: { text: "📲 Merci d'indiquer votre disponibilité dans l'application DYNO." }, timestamp: new Date().toISOString() }] }) });
-  if (!response.ok) throw new Error(`Discord webhook failed (${response.status}): ${(await response.text()).slice(0, 200)}`);
+  const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "DYNO Esport Manager", embeds: [{ title: `🏆 Nouveau ${stringOr(match.type, "match").toLowerCase()} DYNO`, description: `**DYNO 🆚 ${stringOr(match.opponent, "Adversaire")}**`, color: 13938487, fields }] }) });
+  if (!response.ok) throw new Error(`Discord webhook failed (${response.status})`);
 }
-function sortByCreatedAt(a, b) { return dateValue(a.data().createdAt) - dateValue(b.data().createdAt); }
 function stringOr(value, fallback) { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
 function dateValue(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime(); }
 function todayInParis() { return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Paris" }).format(new Date()); }
-function formatShortDate(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", timeZone: "Europe/Paris" }).format(date); }
-function formatFrenchDate(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).format(date); }
+function shortDate(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", timeZone: "Europe/Paris" }).format(date); }
+function longDate(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).format(date); }

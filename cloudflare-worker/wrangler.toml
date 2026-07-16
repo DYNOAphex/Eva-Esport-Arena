@@ -1,0 +1,6 @@
+name = "dyno-discord-notifier"
+main = "src/index.js"
+compatibility_date = "2026-07-16"
+
+[vars]
+FIREBASE_API_KEY = "SET_IN_CLOUDFLARE_DASHBOARD"

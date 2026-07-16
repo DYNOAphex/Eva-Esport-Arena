@@ -1,7 +1,7 @@
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useState } from "react";
 import { Alert, ImageBackground, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
@@ -107,7 +107,19 @@ export default function ScrimsScreen() {
 }
 
 function Label({ text }: { text: string }) { return <Text style={styles.label}>{text}</Text>; }
+
 function DateField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  if (Platform.OS === "web") {
+    return createElement("input", {
+      type: "date",
+      value,
+      min: todayValue(),
+      onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+      style: webInputStyle,
+      "aria-label": "Date du scrim",
+    }) as never;
+  }
+
   const [visible, setVisible] = useState(false);
   const current = value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00`) : new Date();
   function handleChange(event: DateTimePickerEvent, selected?: Date) {
@@ -121,13 +133,42 @@ function DateField({ value, onChange }: { value: string; onChange: (value: strin
   const label = value ? current.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) : "Choisir une date";
   return <View><TouchableOpacity style={styles.selector} onPress={() => setVisible(true)}><Ionicons name="calendar-outline" size={20} color={Theme.colors.goldLight} /><Text style={[styles.selectorText, !value && styles.placeholder]}>{label}</Text><Ionicons name="chevron-forward" size={18} color="#888" /></TouchableOpacity>{visible ? <DateTimePicker value={current} mode="date" minimumDate={editIdSafeDate()} display={Platform.OS === "android" ? "calendar" : "spinner"} onChange={handleChange} /> : null}</View>;
 }
+
 function editIdSafeDate() { const today = new Date(); today.setHours(0, 0, 0, 0); return today; }
+function todayValue() { const today = new Date(); return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`; }
+
 function ClockField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  if (Platform.OS === "web") {
+    return createElement("input", {
+      type: "time",
+      value,
+      step: 300,
+      onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+      style: webInputStyle,
+      "aria-label": "Heure du scrim",
+    }) as never;
+  }
+
   const [visible, setVisible] = useState(false);
   function handleChange(event: DateTimePickerEvent, selected?: Date) { if (Platform.OS === "android") setVisible(false); if (event.type === "dismissed" || !selected) return; onChange(`${selected.getHours().toString().padStart(2, "0")}:${selected.getMinutes().toString().padStart(2, "0")}`); }
   const [hours, minutes] = value.split(":").map(Number); const pickerValue = new Date(); pickerValue.setHours(hours || 0, minutes || 0, 0, 0);
   return <View><TouchableOpacity style={styles.selector} onPress={() => setVisible(true)}><Ionicons name="time-outline" size={20} color={Theme.colors.goldLight} /><Text style={styles.selectorText}>{value.replace(":", "h")}</Text><Ionicons name="chevron-forward" size={18} color="#888" /></TouchableOpacity>{visible ? <DateTimePicker value={pickerValue} mode="time" is24Hour minuteInterval={5} display={Platform.OS === "android" ? "clock" : "spinner"} onChange={handleChange} /> : null}</View>;
 }
+
+const webInputStyle = {
+  width: "100%",
+  minHeight: 50,
+  borderRadius: 15,
+  padding: "0 14px",
+  color: "#ffffff",
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  fontSize: 16,
+  fontWeight: 700,
+  colorScheme: "dark",
+  boxSizing: "border-box",
+  outline: "none",
+} as const;
 
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" }, loadingText: { color: "#D8D8D8" }, container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.42 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.68)" }, content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 150 },

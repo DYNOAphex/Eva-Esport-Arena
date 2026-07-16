@@ -6,9 +6,30 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function validRosterPlayer() {
+      return request.resource.data.keys().hasOnly([
+          'nickname',
+          'createdAt',
+          'accountUid',
+          'accountEmail'
+        ])
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() >= 2
+        && request.resource.data.nickname.size() <= 24
+        && request.resource.data.createdAt is string
+        && request.resource.data.accountUid is string
+        && request.resource.data.accountEmail is string;
+    }
+
     match /matches/{matchId} {
       allow read, create, update: if signedIn();
       allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /roster/{playerId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && validRosterPlayer();
+      allow delete: if signedIn();
     }
 
     match /users/{userId} {

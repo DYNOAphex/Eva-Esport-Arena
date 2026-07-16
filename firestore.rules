@@ -22,8 +22,7 @@ service cloud.firestore {
     }
 
     match /matches/{matchId} {
-      allow read, create, update: if signedIn();
-      allow delete: if signedIn() && resource.data.createdBy == request.auth.uid;
+      allow read, create, update, delete: if signedIn();
     }
 
     match /roster/{playerId} {

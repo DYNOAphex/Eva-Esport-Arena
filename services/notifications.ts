@@ -1,7 +1,9 @@
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import { firebaseConfig } from "../firebase/config";
 import { getAppSettings } from "./appSettings";
+import { getValidSession } from "./authService";
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
@@ -12,21 +14,34 @@ async function requestWebNotificationPermission() {
   return (await window.Notification.requestPermission()) === "granted";
 }
 
-export async function registerForPushNotificationsAsync() {
-  if (Platform.OS === "web") {
-    return (await requestWebNotificationPermission()) ? "web-notifications-enabled" : null;
-  }
+async function saveExpoPushToken(token: string) {
+  const session = await getValidSession();
+  if (!session || !token.startsWith("ExponentPushToken[") && !token.startsWith("ExpoPushToken[")) return;
+  const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${encodeURIComponent(session.localId)}?updateMask.fieldPaths=email&updateMask.fieldPaths=expoPushToken&updateMask.fieldPaths=platform&updateMask.fieldPaths=pushUpdatedAt`;
+  await fetch(url, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${session.idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: {
+      email: { stringValue: session.email },
+      expoPushToken: { stringValue: token },
+      platform: { stringValue: Platform.OS },
+      pushUpdatedAt: { stringValue: new Date().toISOString() },
+    } }),
+  });
+}
 
+export async function registerForPushNotificationsAsync() {
+  if (Platform.OS === "web") return (await requestWebNotificationPermission()) ? "web-notifications-enabled" : null;
   if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("matches", { name: "Matchs et scrims", importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: "#D4AF37", sound: "default" });
   let status = (await Notifications.getPermissionsAsync()).status;
   if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
   if (status !== "granted") return null;
-
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   if (!projectId) return "local-notifications-enabled";
-
   try {
-    return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    await saveExpoPushToken(token).catch(() => null);
+    return token;
   } catch {
     return "local-notifications-enabled";
   }
@@ -36,18 +51,11 @@ export async function notifyMatchCreated({ type, opponent, date, arrivalTime, ma
   if (!(await getAppSettings()).notificationsEnabled) return null;
   const title = `🟡 Nouveau ${type.toLowerCase()} DYNO`;
   const body = `VS ${opponent} • ${formatDate(date)} • RDV ${arrivalTime} • Match ${matchTime} • ${arena}`;
-
   if (Platform.OS === "web") {
     if (!(await requestWebNotificationPermission())) return null;
-    new window.Notification(title, {
-      body,
-      icon: "/Eva-Esport-Arena/pwa-192.png",
-      badge: "/Eva-Esport-Arena/pwa-192.png",
-      tag: `dyno-match-${date}-${matchTime}-${opponent}`,
-    });
+    new window.Notification(title, { body, icon: "/Eva-Esport-Arena/pwa-192.png", badge: "/Eva-Esport-Arena/pwa-192.png", tag: `dyno-match-${date}-${matchTime}-${opponent}` });
     return "web-notification-sent";
   }
-
   let status = (await Notifications.getPermissionsAsync()).status;
   if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
   if (status !== "granted") return null;
@@ -56,7 +64,6 @@ export async function notifyMatchCreated({ type, opponent, date, arrivalTime, ma
 
 export async function scheduleMatchNotification({ opponent, matchDate }: { opponent: string; matchDate: Date }) {
   if (Platform.OS === "web") return [];
-
   const settings = await getAppSettings();
   if (!settings.notificationsEnabled) return [];
   let status = (await Notifications.getPermissionsAsync()).status;
@@ -75,7 +82,4 @@ export async function scheduleMatchNotification({ opponent, matchDate }: { oppon
   return ids;
 }
 
-function formatDate(value: string) {
-  const date = new Date(`${value}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
-}
+function formatDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }); }

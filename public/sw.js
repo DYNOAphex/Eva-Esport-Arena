@@ -1,8 +1,8 @@
-const CACHE_NAME = "dyno-web-v1";
+const CACHE_NAME = "dyno-web-v4";
 const APP_ROOT = "/Eva-Esport-Arena/";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.add(APP_ROOT)).then(() => self.skipWaiting()));
+self.addEventListener("install", () => {
+  self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
@@ -15,13 +15,31 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const isNavigation = event.request.mode === "navigate";
+  const requestUrl = new URL(event.request.url);
+  const isAppAsset = requestUrl.origin === self.location.origin && requestUrl.pathname.startsWith(APP_ROOT);
+
+  if (isNavigation) {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" })
+        .then((response) => response)
+        .catch(() => caches.match(APP_ROOT))
+    );
+    return;
+  }
+
+  if (!isAppAsset) return;
+
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: "no-store" })
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match(APP_ROOT)))
+      .catch(() => caches.match(event.request))
   );
 });

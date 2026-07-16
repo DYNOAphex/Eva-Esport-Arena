@@ -5,7 +5,18 @@ import { getAppSettings } from "./appSettings";
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
+async function requestWebNotificationPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) return false;
+  if (window.Notification.permission === "granted") return true;
+  if (window.Notification.permission === "denied") return false;
+  return (await window.Notification.requestPermission()) === "granted";
+}
+
 export async function registerForPushNotificationsAsync() {
+  if (Platform.OS === "web") {
+    return (await requestWebNotificationPermission()) ? "web-notifications-enabled" : null;
+  }
+
   if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("matches", { name: "Matchs et scrims", importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: "#D4AF37", sound: "default" });
   let status = (await Notifications.getPermissionsAsync()).status;
   if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
@@ -23,13 +34,29 @@ export async function registerForPushNotificationsAsync() {
 
 export async function notifyMatchCreated({ type, opponent, date, arrivalTime, matchTime, arena }: { type: string; opponent: string; date: string; arrivalTime: string; matchTime: string; arena: string }) {
   if (!(await getAppSettings()).notificationsEnabled) return null;
+  const title = `🟡 Nouveau ${type.toLowerCase()} DYNO`;
+  const body = `VS ${opponent} • ${formatDate(date)} • RDV ${arrivalTime} • Match ${matchTime} • ${arena}`;
+
+  if (Platform.OS === "web") {
+    if (!(await requestWebNotificationPermission())) return null;
+    new window.Notification(title, {
+      body,
+      icon: "/Eva-Esport-Arena/pwa-192.png",
+      badge: "/Eva-Esport-Arena/pwa-192.png",
+      tag: `dyno-match-${date}-${matchTime}-${opponent}`,
+    });
+    return "web-notification-sent";
+  }
+
   let status = (await Notifications.getPermissionsAsync()).status;
   if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
   if (status !== "granted") return null;
-  return Notifications.scheduleNotificationAsync({ content: { title: `🟡 Nouveau ${type.toLowerCase()} DYNO`, body: `VS ${opponent} • ${formatDate(date)} • RDV ${arrivalTime} • Match ${matchTime} • ${arena}`, sound: "default", data: { type: "match-created", opponent } }, trigger: null });
+  return Notifications.scheduleNotificationAsync({ content: { title, body, sound: "default", data: { type: "match-created", opponent } }, trigger: null });
 }
 
 export async function scheduleMatchNotification({ opponent, matchDate }: { opponent: string; matchDate: Date }) {
+  if (Platform.OS === "web") return [];
+
   const settings = await getAppSettings();
   if (!settings.notificationsEnabled) return [];
   let status = (await Notifications.getPermissionsAsync()).status;

@@ -33,14 +33,18 @@ for (const document of discordDocuments) {
   }
 }
 
-for (const document of pushDocuments) {
-  try {
-    if (pushTokens.length) await sendExpoPushNotifications(document.data(), pushTokens);
-    await document.ref.update({ pushNotifiedAt: new Date().toISOString() });
-    console.log(`Mobile push sent for match ${document.id} to ${pushTokens.length} device(s).`);
-  } catch (error) {
-    console.error(`Failed to send mobile push for match ${document.id}.`, error);
-    process.exitCode = 1;
+if (!pushTokens.length && pushDocuments.length) {
+  console.log("No Expo push token registered yet; mobile pushes remain pending.");
+} else {
+  for (const document of pushDocuments) {
+    try {
+      await sendExpoPushNotifications(document.data(), pushTokens);
+      await document.ref.update({ pushNotifiedAt: new Date().toISOString() });
+      console.log(`Mobile push sent for match ${document.id} to ${pushTokens.length} device(s).`);
+    } catch (error) {
+      console.error(`Failed to send mobile push for match ${document.id}.`, error);
+      process.exitCode = 1;
+    }
   }
 }
 
@@ -51,12 +55,10 @@ function shouldDiscordNotify(match, todayValue) {
   if (typeof match.discordNotifiedAt === "string" && match.discordNotifiedAt.trim()) return false;
   return isEligible(match, todayValue) || match.discordNotificationPending === true;
 }
-
 function shouldPushNotify(match, todayValue) {
   if (typeof match.pushNotifiedAt === "string" && match.pushNotifiedAt.trim()) return false;
   return isEligible(match, todayValue);
 }
-
 function isEligible(match, todayValue) {
   if (match.status === "Annulé") return false;
   const matchDate = typeof match.date === "string" ? match.date.trim() : "";
@@ -64,17 +66,14 @@ function isEligible(match, todayValue) {
   const createdAt = new Date(match.createdAt);
   return !Number.isNaN(createdAt.getTime()) && createdAt.getTime() >= Date.now() - 7 * 86400000;
 }
-
 async function sendExpoPushNotifications(match, tokens) {
   const title = `🟡 Nouveau ${stringOr(match.type, "match").toLowerCase()} DYNO`;
   const body = `VS ${stringOr(match.opponent, "Adversaire")} • ${formatShortDate(stringOr(match.date, ""))} • RDV ${stringOr(match.arrivalTime, "?")} • Match ${stringOr(match.matchTime, "?")} • ${stringOr(match.arena, "")}`;
-  const messages = tokens.map((to) => ({ to, title, body, sound: "default", channelId: "matches", priority: "high", data: { type: "match-created", matchId: match.id ?? "" } }));
+  const messages = tokens.map((to) => ({ to, title, body, sound: "default", channelId: "matches", priority: "high", data: { type: "match-created" } }));
   const response = await fetch("https://exp.host/--/api/v2/push/send", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(messages) });
   if (!response.ok) throw new Error(`Expo push failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
-  const result = await response.json();
-  console.log("Expo push response:", JSON.stringify(result));
+  console.log("Expo push response:", JSON.stringify(await response.json()));
 }
-
 async function sendDiscordNotification(match) {
   const type = stringOr(match.type, "match").toLowerCase();
   const opponent = stringOr(match.opponent, "Adversaire");
@@ -89,7 +88,6 @@ async function sendDiscordNotification(match) {
   const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "DYNO Esport Manager", allowed_mentions: { parse: [] }, embeds: [{ title: `🏆 Nouveau ${type} DYNO`, description: `**DYNO 🆚 ${opponent}**`, color: 13938487, fields, footer: { text: "📲 Merci d'indiquer votre disponibilité dans l'application DYNO." }, timestamp: new Date().toISOString() }] }) });
   if (!response.ok) throw new Error(`Discord webhook failed (${response.status}): ${(await response.text()).slice(0, 200)}`);
 }
-
 function sortByCreatedAt(a, b) { return dateValue(a.data().createdAt) - dateValue(b.data().createdAt); }
 function stringOr(value, fallback) { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
 function dateValue(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime(); }

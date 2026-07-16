@@ -6,10 +6,6 @@ if (!webhookUrl) {
   throw new Error("Missing DISCORD_WEBHOOK_URL secret.");
 }
 
-// Only matches created after the free notification workflow was released are eligible.
-// This lets older installed APKs work without announcing historical matches.
-const ROLLOUT_DATE = new Date("2026-07-14T13:53:55.000Z");
-
 initializeApp({
   credential: applicationDefault(),
   projectId: "eva-esport-arena",
@@ -17,10 +13,16 @@ initializeApp({
 
 const db = getFirestore();
 const snapshot = await db.collection("matches").limit(100).get();
+const today = todayInParis();
+
+console.log(`Firestore matches found: ${snapshot.size}.`);
+
 const pendingDocuments = snapshot.docs
-  .filter((document) => shouldNotify(document.data()))
+  .filter((document) => shouldNotify(document.data(), today))
   .sort((a, b) => dateValue(a.data().createdAt) - dateValue(b.data().createdAt))
   .slice(0, 20);
+
+console.log(`Discord announcements pending: ${pendingDocuments.length}.`);
 
 if (!pendingDocuments.length) {
   console.log("No pending Discord announcements.");
@@ -43,13 +45,17 @@ for (const document of pendingDocuments) {
   }
 }
 
-function shouldNotify(match) {
+function shouldNotify(match, todayValue) {
   if (typeof match.discordNotifiedAt === "string" && match.discordNotifiedAt.trim()) return false;
+  if (match.status === "Annulé") return false;
   if (match.discordNotificationPending === true) return true;
 
-  // Compatibility for matches created by APKs installed before the pending flag existed.
+  const matchDate = typeof match.date === "string" ? match.date.trim() : "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(matchDate) && matchDate >= todayValue) return true;
+
   const createdAt = new Date(match.createdAt);
-  return !Number.isNaN(createdAt.getTime()) && createdAt >= ROLLOUT_DATE;
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  return !Number.isNaN(createdAt.getTime()) && createdAt.getTime() >= sevenDaysAgo;
 }
 
 async function sendDiscordNotification(match) {
@@ -106,6 +112,15 @@ function stringOr(value, fallback) {
 function dateValue(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime();
+}
+
+function todayInParis() {
+  return new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Europe/Paris",
+  }).format(new Date());
 }
 
 function formatFrenchDate(value) {

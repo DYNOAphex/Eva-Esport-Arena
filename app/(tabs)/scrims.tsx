@@ -7,7 +7,7 @@ import { Alert, ImageBackground, Platform, SafeAreaView, ScrollView, StyleSheet,
 import { Theme } from "../../constants/theme";
 import { getScrimPermissions } from "../../services/accessControl";
 import { createMatch, getMatch, updateMatch } from "../../services/matchStore";
-import { scheduleMatchNotification } from "../../services/notifications";
+import { notifyMatchCreated, scheduleMatchNotification } from "../../services/notifications";
 import type { MatchArena, MatchStatus } from "../../services/matchStore";
 
 const marbleSource = require("../../assets/images/background-marble.jpg");
@@ -55,8 +55,19 @@ export default function ScrimsScreen() {
       const input = { type: "Scrim" as const, opponent: opponent.trim(), date, arrivalTime, matchTime, arena, status, notes: notes.trim() };
       const match = editId ? await updateMatch(editId, input) : await createMatch(input);
       if (!editId) {
+        await notifyMatchCreated({
+          type: match.type,
+          opponent: match.opponent,
+          date: match.date,
+          arrivalTime: match.arrivalTime,
+          matchTime: match.matchTime,
+          arena: match.arena,
+        }).catch(() => null);
+
         const start = new Date(`${match.date}T${match.matchTime}:00`);
-        if (!Number.isNaN(start.getTime())) await scheduleMatchNotification({ opponent: match.opponent, matchDate: start }).catch(() => null);
+        if (!Number.isNaN(start.getTime())) {
+          await scheduleMatchNotification({ opponent: match.opponent, matchDate: start }).catch(() => null);
+        }
       }
       Alert.alert(editId ? "Scrim modifié" : "Scrim programmé", `DYNO vs ${match.opponent} est enregistré.`, [{ text: "Voir l'Agenda", onPress: () => router.replace("/(tabs)/planning") }]);
     } catch (error) {

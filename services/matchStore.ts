@@ -23,6 +23,7 @@ type FirestoreDocument = { name: string; fields?: Record<string, FirestoreValue>
 const STORAGE_KEY = "dyno_matches_local_v3";
 const LEGACY_STORAGE_KEY = "dyno_matches_local_v2";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/matches`;
+const DISCORD_WORKER_URL = "https://dyno-discord-notifier.thibaut-llorens.workers.dev/notify-match";
 const listeners = new Set<(matches: Match[]) => void>();
 let latestMatches: Match[] = [];
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -54,24 +55,40 @@ function documentToMatch(document: FirestoreDocument): Match {
 async function firestoreRequest(url: string, init: RequestInit = {}) { const session = await requireUser(); return fetch(url, { ...init, headers: { Authorization: `Bearer ${session.idToken}`, "Content-Type": "application/json", ...(init.headers ?? {}) } }); }
 async function fetchCloudMatches() { const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`); if (!response.ok) throw new Error("Synchronisation Firebase impossible."); const data = (await response.json()) as { documents?: FirestoreDocument[] }; return sortMatches((data.documents ?? []).map(documentToMatch)); }
 async function uploadMatch(match: Match) { const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(match.id)}`, { method: "PATCH", body: JSON.stringify({ fields: matchToFields(match) }) }); if (!response.ok) throw new Error("Enregistrement Firebase impossible."); }
+async function notifyDiscordImmediately(match: Match, idToken: string) {
+  const response = await fetch(DISCORD_WORKER_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ type: match.type, opponent: match.opponent, date: match.date, arrivalTime: match.arrivalTime, matchTime: match.matchTime, arena: match.arena, notes: match.notes ?? "" }),
+  });
+  if (!response.ok) throw new Error(`Notification Discord immédiate impossible (${response.status}).`);
+}
 async function syncFromCloud() {
   if (syncInProgress) return latestMatches;
   syncInProgress = true;
-  try {
-    const cloud = await fetchCloudMatches();
-    return persist(cloud);
-  } catch {
-    const local = await readStoredMatches();
-    latestMatches = local;
-    return local;
-  } finally {
-    syncInProgress = false;
-  }
+  try { const cloud = await fetchCloudMatches(); return persist(cloud); }
+  catch { const local = await readStoredMatches(); latestMatches = local; return local; }
+  finally { syncInProgress = false; }
 }
 
 export async function getMatches() { const local = await readStoredMatches(); latestMatches = local; void syncFromCloud(); return local; }
 export async function getMatch(matchId: string) { const matches = await fetchCloudMatches().catch(readStoredMatches); return matches.find((match) => match.id === matchId) ?? null; }
-export async function createMatch(input: MatchInput) { const user = await requireUser(); const matches = await readStoredMatches(); const match: Match = { ...input, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), createdBy: user.localId, discordNotificationPending: true, responses: [] }; await uploadMatch(match); await persist([...matches, match]); return match; }
+export async function createMatch(input: MatchInput) {
+  const user = await requireUser();
+  const matches = await readStoredMatches();
+  let match: Match = { ...input, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), createdBy: user.localId, discordNotificationPending: true, responses: [] };
+  await uploadMatch(match);
+  await persist([...matches, match]);
+  try {
+    await notifyDiscordImmediately(match, user.idToken);
+    match = { ...match, discordNotificationPending: false, discordNotifiedAt: new Date().toISOString() };
+    await uploadMatch(match);
+    await persist([...matches, match]);
+  } catch {
+    // GitHub Actions will retry any match still marked as pending.
+  }
+  return match;
+}
 export async function updateMatch(matchId: string, patch: Partial<MatchInput>) { await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const current = matches.find((match) => match.id === matchId); if (!current) throw new Error("Ce match n'existe plus."); const changed: Match = { ...current, ...patch, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy, discordNotificationPending: current.discordNotificationPending, discordNotifiedAt: current.discordNotifiedAt, pushNotifiedAt: current.pushNotifiedAt }; await uploadMatch(changed); await persist(matches.map((match) => match.id === matchId ? changed : match)); return changed; }
 export async function duplicateMatch(matchId: string) { const original = await getMatch(matchId); if (!original) throw new Error("Ce match n'existe plus."); return createMatch({ type: original.type, opponent: original.opponent, date: original.date, arrivalTime: original.arrivalTime, matchTime: original.matchTime, arena: original.arena, status: "En attente", notes: original.notes }); }
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {

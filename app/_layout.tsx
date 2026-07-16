@@ -15,13 +15,13 @@ export default function RootLayout() {
       if (typeof document !== "undefined") {
         const manifest = document.querySelector('link[rel="manifest"]') ?? document.createElement("link");
         manifest.setAttribute("rel", "manifest");
-        manifest.setAttribute("href", "/Eva-Esport-Arena/manifest.json");
+        manifest.setAttribute("href", "/Eva-Esport-Arena/manifest.json?v=4");
         if (!manifest.parentNode) document.head.appendChild(manifest);
 
         const appleIcon = document.querySelector('link[rel="apple-touch-icon"]') ?? document.createElement("link");
         appleIcon.setAttribute("rel", "apple-touch-icon");
         appleIcon.setAttribute("sizes", "512x512");
-        appleIcon.setAttribute("href", "/Eva-Esport-Arena/pwa-512.png");
+        appleIcon.setAttribute("href", "/Eva-Esport-Arena/pwa-512.png?v=4");
         if (!appleIcon.parentNode) document.head.appendChild(appleIcon);
 
         let appleMeta = document.querySelector('meta[name="apple-mobile-web-app-capable"]');
@@ -34,7 +34,13 @@ export default function RootLayout() {
       }
 
       if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
-        void navigator.serviceWorker.register("/Eva-Esport-Arena/sw.js").catch(() => null);
+        void navigator.serviceWorker
+          .register("/Eva-Esport-Arena/sw.js?v=4", { updateViaCache: "none" })
+          .then(async (registration) => {
+            await registration.update();
+            if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+          })
+          .catch(() => null);
       }
       return;
     }

@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Check notification secrets
+      - name: Check required notification secrets
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EVA_ESPORT_ARENA }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -34,8 +34,11 @@ jobs:
         run: |
           test -n "$FIREBASE_SERVICE_ACCOUNT_JSON" || { echo "Secret manquant: FIREBASE_SERVICE_ACCOUNT_EVA_ESPORT_ARENA"; exit 1; }
           test -n "$DISCORD_WEBHOOK_URL" || { echo "Secret manquant: DISCORD_WEBHOOK_URL"; exit 1; }
-          test -n "$VAPID_PRIVATE_KEY" || { echo "Secret manquant: VAPID_PRIVATE_KEY"; exit 1; }
-          echo "Secrets Firebase, Discord et Web Push présents."
+          if [ -z "$VAPID_PRIVATE_KEY" ]; then
+            echo "Web Push désactivé: secret VAPID_PRIVATE_KEY absent. Discord et Android continueront de fonctionner."
+          else
+            echo "Web Push configuré."
+          fi
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2

@@ -1,13 +1,26 @@
 import webpush from "web-push";
 
+let configured = false;
+
 export function configureWebPush() {
   const publicKey = process.env.VAPID_PUBLIC_KEY;
   const privateKey = process.env.VAPID_PRIVATE_KEY;
-  if (!publicKey || !privateKey) throw new Error("Missing VAPID keys.");
+  if (!publicKey || !privateKey) {
+    console.log("Web Push disabled: VAPID keys are missing.");
+    configured = false;
+    return false;
+  }
   webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:dyno-esport-manager@users.noreply.github.com", publicKey, privateKey);
+  configured = true;
+  return true;
+}
+
+export function isWebPushConfigured() {
+  return configured;
 }
 
 export async function sendWebPushNotifications(match, items) {
+  if (!configured) return 0;
   const payload = JSON.stringify({
     title: `🟡 Nouveau ${(match.type || "match").toLowerCase()} DYNO`,
     body: `VS ${match.opponent || "Adversaire"} • ${shortDate(match.date)} • RDV ${match.arrivalTime || "?"} • Match ${match.matchTime || "?"} • ${match.arena || ""}`,

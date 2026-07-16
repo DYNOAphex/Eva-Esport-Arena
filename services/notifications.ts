@@ -7,7 +7,12 @@ import { getValidSession } from "./authService";
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
-async function requestWebNotificationPermission() {
+export async function requestNotificationPermission() {
+  if (Platform.OS !== "web") {
+    let status = (await Notifications.getPermissionsAsync()).status;
+    if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
+    return status === "granted";
+  }
   if (typeof window === "undefined" || !("Notification" in window)) return false;
   if (window.Notification.permission === "granted") return true;
   if (window.Notification.permission === "denied") return false;
@@ -16,7 +21,7 @@ async function requestWebNotificationPermission() {
 
 async function saveExpoPushToken(token: string) {
   const session = await getValidSession();
-  if (!session || !token.startsWith("ExponentPushToken[") && !token.startsWith("ExpoPushToken[")) return;
+  if (!session || (!token.startsWith("ExponentPushToken[") && !token.startsWith("ExpoPushToken["))) return;
   const url = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${encodeURIComponent(session.localId)}?updateMask.fieldPaths=email&updateMask.fieldPaths=expoPushToken&updateMask.fieldPaths=platform&updateMask.fieldPaths=pushUpdatedAt`;
   await fetch(url, {
     method: "PATCH",
@@ -31,11 +36,9 @@ async function saveExpoPushToken(token: string) {
 }
 
 export async function registerForPushNotificationsAsync() {
-  if (Platform.OS === "web") return (await requestWebNotificationPermission()) ? "web-notifications-enabled" : null;
+  if (Platform.OS === "web") return (await requestNotificationPermission()) ? "web-notifications-enabled" : null;
   if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("matches", { name: "Matchs et scrims", importance: Notifications.AndroidImportance.HIGH, vibrationPattern: [0, 250, 150, 250], lightColor: "#D4AF37", sound: "default" });
-  let status = (await Notifications.getPermissionsAsync()).status;
-  if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
-  if (status !== "granted") return null;
+  if (!(await requestNotificationPermission())) return null;
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
   if (!projectId) return "local-notifications-enabled";
   try {
@@ -52,23 +55,18 @@ export async function notifyMatchCreated({ type, opponent, date, arrivalTime, ma
   const title = `🟡 Nouveau ${type.toLowerCase()} DYNO`;
   const body = `VS ${opponent} • ${formatDate(date)} • RDV ${arrivalTime} • Match ${matchTime} • ${arena}`;
   if (Platform.OS === "web") {
-    if (!(await requestWebNotificationPermission())) return null;
+    if (!(await requestNotificationPermission())) return null;
     new window.Notification(title, { body, icon: "/Eva-Esport-Arena/pwa-192.png", badge: "/Eva-Esport-Arena/pwa-192.png", tag: `dyno-match-${date}-${matchTime}-${opponent}` });
     return "web-notification-sent";
   }
-  let status = (await Notifications.getPermissionsAsync()).status;
-  if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
-  if (status !== "granted") return null;
+  if (!(await requestNotificationPermission())) return null;
   return Notifications.scheduleNotificationAsync({ content: { title, body, sound: "default", data: { type: "match-created", opponent } }, trigger: null });
 }
 
 export async function scheduleMatchNotification({ opponent, matchDate }: { opponent: string; matchDate: Date }) {
   if (Platform.OS === "web") return [];
   const settings = await getAppSettings();
-  if (!settings.notificationsEnabled) return [];
-  let status = (await Notifications.getPermissionsAsync()).status;
-  if (status !== "granted") status = (await Notifications.requestPermissionsAsync()).status;
-  if (status !== "granted") return [];
+  if (!settings.notificationsEnabled || !(await requestNotificationPermission())) return [];
   const ids: string[] = [];
   const reminders = [
     { enabled: settings.reminder24h, offset: 86400000, title: "⚔️ Match DYNO demain", body: `Le match contre ${opponent} commence dans 24 heures.` },

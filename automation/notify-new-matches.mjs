@@ -1,6 +1,6 @@
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
-import { configureWebPush, sendWebPushNotifications } from "./web-push.mjs";
+import { configureWebPush, isWebPushConfigured, sendWebPushNotifications } from "./web-push.mjs";
 
 const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
 if (!webhookUrl) throw new Error("Missing DISCORD_WEBHOOK_URL secret.");
@@ -30,7 +30,10 @@ for (const document of discordDocs) {
     await sendDiscordNotification(document.data());
     await document.ref.update({ discordNotificationPending: false, discordNotifiedAt: new Date().toISOString() });
     console.log(`Discord announcement sent for match ${document.id}.`);
-  } catch (error) { console.error(error); process.exitCode = 1; }
+  } catch (error) {
+    console.error(`Discord failed for ${document.id}:`, error);
+    process.exitCode = 1;
+  }
 }
 
 if (!expoTokens.length && mobileDocs.length) console.log("No Expo push token registered yet; mobile pushes remain pending.");
@@ -39,16 +42,29 @@ for (const document of expoTokens.length ? mobileDocs : []) {
     await sendExpoPushNotifications(document.data(), expoTokens);
     await document.ref.update({ pushNotifiedAt: new Date().toISOString() });
     console.log(`Mobile push sent for match ${document.id} to ${expoTokens.length} device(s).`);
-  } catch (error) { console.error(error); process.exitCode = 1; }
+  } catch (error) {
+    console.error(`Mobile push failed for ${document.id}:`, error);
+    process.exitCode = 1;
+  }
 }
 
-if (!webSubscriptions.length && webDocs.length) console.log("No Web Push subscription registered yet; web pushes remain pending.");
-for (const document of webSubscriptions.length ? webDocs : []) {
-  try {
-    const sent = await sendWebPushNotifications(document.data(), webSubscriptions);
-    await document.ref.update({ webPushNotifiedAt: new Date().toISOString() });
-    console.log(`Web Push sent for match ${document.id} to ${sent} device(s).`);
-  } catch (error) { console.error(error); process.exitCode = 1; }
+if (!isWebPushConfigured()) {
+  if (webDocs.length) console.log("Web pushes remain pending: VAPID is not configured.");
+} else if (!webSubscriptions.length) {
+  if (webDocs.length) console.log("No Web Push subscription registered yet; web pushes remain pending.");
+} else {
+  for (const document of webDocs) {
+    try {
+      const sent = await sendWebPushNotifications(document.data(), webSubscriptions);
+      if (sent > 0) {
+        await document.ref.update({ webPushNotifiedAt: new Date().toISOString() });
+        console.log(`Web Push sent for match ${document.id} to ${sent} device(s).`);
+      }
+    } catch (error) {
+      console.error(`Web Push failed for ${document.id}:`, error);
+      process.exitCode = 1;
+    }
+  }
 }
 
 function pending(field) {

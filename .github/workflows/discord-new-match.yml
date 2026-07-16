@@ -26,6 +26,21 @@ jobs:
         with:
           node-version: 24
 
+      - name: Check notification secrets
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EVA_ESPORT_ARENA }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Secret manquant: FIREBASE_SERVICE_ACCOUNT_EVA_ESPORT_ARENA"
+            exit 1
+          fi
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "Secret manquant: DISCORD_WEBHOOK_URL"
+            exit 1
+          fi
+          echo "Secrets Firebase et Discord présents."
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:

@@ -45,7 +45,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Theme.colors.goldLight,
         tabBarInactiveTintColor: "#929292",
         tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "800", marginTop: 1 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 1 },
         tabBarStyle: {
           position: "absolute",
           left: 14,
@@ -73,6 +73,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="planning" options={{ title: "Agenda", tabBarBadge: pendingCount || undefined, tabBarBadgeStyle: { backgroundColor: "#E84B4B", color: "#fff", fontSize: 9 }, tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "calendar" : "calendar-outline"} color={color} size={focused ? size + 1 : size} /> }} />
       <Tabs.Screen name="scrims" options={{ href: allowedToCreate ? "/scrims" : null, title: "", tabBarLabel: () => null, tabBarIcon: ({ focused }) => <CenterAction focused={focused} /> }} />
       <Tabs.Screen name="team" options={{ title: "Équipe", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "people" : "people-outline"} color={color} size={focused ? size + 1 : size} /> }} />
+      <Tabs.Screen name="support" options={{ title: "Support", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "help-buoy" : "help-buoy-outline"} color={color} size={focused ? size + 1 : size} /> }} />
       <Tabs.Screen name="profile" options={{ title: "Plus", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "settings" : "settings-outline"} color={color} size={focused ? size + 1 : size} /> }} />
     </Tabs>
   );

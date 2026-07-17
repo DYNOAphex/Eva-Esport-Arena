@@ -32,6 +32,37 @@ service cloud.firestore {
         && request.resource.data.accountEmail is string;
     }
 
+    function validSupportReport() {
+      return request.resource.data.keys().hasOnly([
+          'message',
+          'userId',
+          'email',
+          'role',
+          'platform',
+          'version',
+          'notificationsEnabled',
+          'reminder24h',
+          'reminder1h',
+          'webPushDiagnostic',
+          'createdAt',
+          'status'
+        ])
+        && request.resource.data.message is string
+        && request.resource.data.message.size() >= 1
+        && request.resource.data.message.size() <= 1200
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role is string
+        && request.resource.data.platform is string
+        && request.resource.data.version is string
+        && request.resource.data.notificationsEnabled is bool
+        && request.resource.data.reminder24h is bool
+        && request.resource.data.reminder1h is bool
+        && request.resource.data.webPushDiagnostic is string
+        && request.resource.data.createdAt is string
+        && request.resource.data.status == 'Nouveau';
+    }
+
     match /matches/{matchId} {
       allow read: if signedIn();
       allow create, delete: if isAdmin();
@@ -47,6 +78,11 @@ service cloud.firestore {
     match /appAccess/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
       allow write: if isAdmin();
+    }
+
+    match /supportReports/{reportId} {
+      allow create: if signedIn() && validSupportReport();
+      allow read, update, delete: if isAdmin();
     }
 
     match /users/{userId} {

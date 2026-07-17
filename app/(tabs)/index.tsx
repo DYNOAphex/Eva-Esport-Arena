@@ -34,6 +34,33 @@ export default function DashboardScreen() {
     return () => { active = false; unsubscribeMatches(); unsubscribeRoster(); };
   }, []);
 
+  useEffect(() => {
+    if (!Updates.isEnabled) return;
+    let cancelled = false;
+
+    const checkInBackground = async () => {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (!update.isAvailable || cancelled) return;
+        await Updates.fetchUpdateAsync();
+        if (cancelled) return;
+        Alert.alert(
+          "Mise à jour DYNO prête",
+          "La mise à jour a été téléchargée directement dans l'application. Redémarre DYNO pour l'appliquer.",
+          [
+            { text: "Plus tard", style: "cancel" },
+            { text: "Redémarrer", onPress: () => void Updates.reloadAsync() },
+          ],
+        );
+      } catch {
+        // La vérification reste silencieuse : l'application continue de fonctionner normalement.
+      }
+    };
+
+    const timer = setTimeout(() => void checkInBackground(), 1800);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, []);
+
   const upcomingMatches = useMemo(() => {
     const now = Date.now();
     return matches.filter((match) => { const date = toMatchDate(match); return Boolean(date && date.getTime() >= now && match.status !== "Annulé"); });
@@ -73,7 +100,7 @@ export default function DashboardScreen() {
       const update = await Updates.checkForUpdateAsync();
       if (!update.isAvailable) { setRefreshText("Application et données actualisées"); return; }
       await Updates.fetchUpdateAsync();
-      Alert.alert("Mise à jour prête", "L'application va redémarrer.", [{ text: "Redémarrer", onPress: () => Updates.reloadAsync() }]);
+      Alert.alert("Mise à jour prête", "La mise à jour a été téléchargée dans DYNO.", [{ text: "Redémarrer", onPress: () => Updates.reloadAsync() }]);
     } catch { setRefreshText("Actualisation impossible"); }
     finally { setRefreshing(false); setTimeout(() => setRefreshText("Tire vers le bas pour actualiser"), 3500); }
   }, [refreshing]);

@@ -31,9 +31,18 @@ export default {
 
       const payload = await request.json();
       const match = validateMatch(payload);
+
       await sendDiscord(env.DISCORD_WEBHOOK_URL, match, account.email || "");
 
-      return json({ ok: true }, 200, cors);
+      let webPushTriggered = false;
+      try {
+        await triggerNotificationWorkflow(env.GITHUB_WORKFLOW_TOKEN);
+        webPushTriggered = true;
+      } catch (error) {
+        console.error("GitHub workflow dispatch failed", error);
+      }
+
+      return json({ ok: true, discord: "sent", webPushTriggered }, 200, cors);
     } catch (error) {
       console.error(error);
       return json({ error: error instanceof Error ? error.message : "Notification failed" }, 500, cors);
@@ -67,6 +76,30 @@ async function verifyFirebaseToken(idToken, apiKey) {
   if (!response.ok) return null;
   const data = await response.json();
   return data.users?.[0] ?? null;
+}
+
+async function triggerNotificationWorkflow(token) {
+  if (!token) throw new Error("GITHUB_WORKFLOW_TOKEN is not configured");
+
+  const response = await fetch(
+    "https://api.github.com/repos/DYNOAphex/Eva-Esport-Arena/actions/workflows/discord-new-match.yml/dispatches",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "DYNO-Cloudflare-Worker",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref: "main" }),
+    }
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GitHub workflow dispatch failed (${response.status}): ${body.slice(0, 160)}`);
+  }
 }
 
 function validateMatch(value) {

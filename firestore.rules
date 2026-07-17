@@ -6,6 +6,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email == 'thibaut.llorens@hotmail.com';
+    }
+
+    function availabilityOnlyUpdate() {
+      return signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses']);
+    }
+
     function validRosterPlayer() {
       return request.resource.data.keys().hasOnly([
           'nickname',
@@ -22,13 +33,20 @@ service cloud.firestore {
     }
 
     match /matches/{matchId} {
-      allow read, create, update, delete: if signedIn();
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || availabilityOnlyUpdate();
     }
 
     match /roster/{playerId} {
       allow read: if signedIn();
-      allow create, update: if signedIn() && validRosterPlayer();
-      allow delete: if signedIn();
+      allow create, update: if isAdmin() && validRosterPlayer();
+      allow delete: if isAdmin();
+    }
+
+    match /appAccess/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
     }
 
     match /users/{userId} {

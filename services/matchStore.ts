@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { firebaseConfig } from "../firebase/config";
+import { canCreateScrim, canManageScrims } from "./accessControl";
 import { getValidSession } from "./authService";
 import { getRosterPlayerForAccount } from "./rosterStore";
 
@@ -33,6 +34,8 @@ function sortMatches(matches: Match[]) { return [...matches].sort((a, b) => `${a
 async function persist(matches: Match[]) { latestMatches = sortMatches(matches); await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latestMatches)); listeners.forEach((listener) => listener(latestMatches)); return latestMatches; }
 async function readStoredMatches(): Promise<Match[]> { const raw = (await AsyncStorage.getItem(STORAGE_KEY)) ?? (await AsyncStorage.getItem(LEGACY_STORAGE_KEY)); if (!raw) return []; try { return sortMatches(JSON.parse(raw) as Match[]); } catch { return []; } }
 async function requireUser() { const session = await getValidSession(); if (!session) throw new Error("Tu dois être connecté pour modifier les matchs."); return session; }
+async function requireCreatePermission() { if (!(await canCreateScrim())) throw new Error("Seul un administrateur peut créer un match."); }
+async function requireManagePermission() { if (!(await canManageScrims())) throw new Error("Seul un administrateur peut modifier ou supprimer un match."); }
 function playerNameFromEmail(email: string) { return email.split("@")[0] || "Joueur DYNO"; }
 function stringValue(value: unknown): FirestoreValue { return { stringValue: String(value ?? "") }; }
 function responseToFirestore(response: PlayerResponse): FirestoreValue { return { mapValue: { fields: { uid: stringValue(response.uid ?? ""), player: stringValue(response.player), status: stringValue(response.status) } } }; }
@@ -74,6 +77,7 @@ async function syncFromCloud() {
 export async function getMatches() { const local = await readStoredMatches(); latestMatches = local; void syncFromCloud(); return local; }
 export async function getMatch(matchId: string) { const matches = await fetchCloudMatches().catch(readStoredMatches); return matches.find((match) => match.id === matchId) ?? null; }
 export async function createMatch(input: MatchInput) {
+  await requireCreatePermission();
   const user = await requireUser();
   const matches = await readStoredMatches();
   let match: Match = { ...input, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), createdBy: user.localId, discordNotificationPending: true, responses: [] };
@@ -89,8 +93,8 @@ export async function createMatch(input: MatchInput) {
   }
   return match;
 }
-export async function updateMatch(matchId: string, patch: Partial<MatchInput>) { await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const current = matches.find((match) => match.id === matchId); if (!current) throw new Error("Ce match n'existe plus."); const changed: Match = { ...current, ...patch, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy, discordNotificationPending: current.discordNotificationPending, discordNotifiedAt: current.discordNotifiedAt, pushNotifiedAt: current.pushNotifiedAt }; await uploadMatch(changed); await persist(matches.map((match) => match.id === matchId ? changed : match)); return changed; }
-export async function duplicateMatch(matchId: string) { const original = await getMatch(matchId); if (!original) throw new Error("Ce match n'existe plus."); return createMatch({ type: original.type, opponent: original.opponent, date: original.date, arrivalTime: original.arrivalTime, matchTime: original.matchTime, arena: original.arena, status: "En attente", notes: original.notes }); }
+export async function updateMatch(matchId: string, patch: Partial<MatchInput>) { await requireManagePermission(); await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const current = matches.find((match) => match.id === matchId); if (!current) throw new Error("Ce match n'existe plus."); const changed: Match = { ...current, ...patch, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy, discordNotificationPending: current.discordNotificationPending, discordNotifiedAt: current.discordNotifiedAt, pushNotifiedAt: current.pushNotifiedAt }; await uploadMatch(changed); await persist(matches.map((match) => match.id === matchId ? changed : match)); return changed; }
+export async function duplicateMatch(matchId: string) { await requireCreatePermission(); const original = await getMatch(matchId); if (!original) throw new Error("Ce match n'existe plus."); return createMatch({ type: original.type, opponent: original.opponent, date: original.date, arrivalTime: original.arrivalTime, matchTime: original.matchTime, arena: original.arena, status: "En attente", notes: original.notes }); }
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {
   const user = await requireUser();
   const linkedPlayer = await getRosterPlayerForAccount(user.localId, user.email).catch(() => null);
@@ -108,6 +112,6 @@ export async function setMatchAvailability(matchId: string, availability: Exclud
   if (!changed) throw new Error("Ce match n'existe plus.");
   await uploadMatch(changed); await persist(updated);
 }
-export async function deleteMatch(matchId: string) { await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(matchId)}`, { method: "DELETE" }); if (!response.ok && response.status !== 404) throw new Error("Suppression Firebase impossible."); await persist(matches.filter((match) => match.id !== matchId)); }
+export async function deleteMatch(matchId: string) { await requireManagePermission(); await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(matchId)}`, { method: "DELETE" }); if (!response.ok && response.status !== 404) throw new Error("Suppression Firebase impossible."); await persist(matches.filter((match) => match.id !== matchId)); }
 export function subscribeToMatches(listener: (matches: Match[]) => void) { listeners.add(listener); if (latestMatches.length) listener(latestMatches); void syncFromCloud(); if (!pollTimer) pollTimer = setInterval(() => void syncFromCloud(), 5000); return () => { listeners.delete(listener); if (!listeners.size && pollTimer) { clearInterval(pollTimer); pollTimer = null; } }; }
 export function toMatchDate(match: Pick<Match, "date" | "matchTime">) { const value = new Date(`${match.date}T${match.matchTime}:00`); return Number.isNaN(value.getTime()) ? null : value; }

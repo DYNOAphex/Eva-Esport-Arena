@@ -27,6 +27,7 @@ export default function PlanningScreen() {
   const [filter, setFilter] = useState<AgendaFilter>("upcoming");
 
   const loadMatches = useCallback(async () => setMatches(await getMatches()), []);
+
   useEffect(() => {
     void loadMatches();
     void getRoster().then(setRoster);
@@ -71,12 +72,26 @@ export default function PlanningScreen() {
       }
     } catch {
       Alert.alert("Disponibilité", "Ta réponse n'a pas pu être enregistrée.");
-    } finally { setSavingMatchId(null); }
+    } finally {
+      setSavingMatchId(null);
+    }
   }
 
   async function shareMatch(match: Match) {
     const summary = getResponseSummary(match);
-    await Share.share({ title: `DYNO vs ${match.opponent}`, message: [`⚔️ DYNO vs ${match.opponent}`, `📅 ${formatDate(match.date)}`, `🕒 Rendez-vous ${match.arrivalTime} • Match ${match.matchTime}`, `📍 ${match.arena}`, `✅ ${summary.available} disponible(s) • ❌ ${summary.unavailable} indisponible(s)`, summary.pendingPlayers.length ? `⏳ Sans réponse : ${summary.pendingPlayers.map((player) => player.nickname).join(", ")}` : "✅ Tout le monde a répondu", `Statut : ${match.status}`, match.notes ? `📝 ${match.notes}` : ""].filter(Boolean).join("\n") });
+    await Share.share({
+      title: `DYNO vs ${match.opponent}`,
+      message: [
+        `⚔️ DYNO vs ${match.opponent}`,
+        `📅 ${formatDate(match.date)}`,
+        `🕒 Rendez-vous ${match.arrivalTime} • Match ${match.matchTime}`,
+        `📍 ${match.arena}`,
+        `✅ ${summary.available} disponible(s) • ❌ ${summary.unavailable} indisponible(s)`,
+        summary.pendingPlayers.length ? `⏳ Sans réponse : ${summary.pendingPlayers.map((player) => player.nickname).join(", ")}` : "✅ Tout le monde a répondu",
+        `Statut : ${match.status}`,
+        match.notes ? `📝 ${match.notes}` : "",
+      ].filter(Boolean).join("\n"),
+    });
   }
 
   async function addToCalendar(match: Match) {
@@ -120,13 +135,26 @@ export default function PlanningScreen() {
       Alert.alert("Scrim supprimé", "Le match a été supprimé de tous les appareils.");
     } catch (error) {
       Alert.alert("Suppression impossible", error instanceof Error ? error.message : "Le match n'a pas pu être supprimé de Firebase.");
-    } finally { setSavingMatchId(null); }
+    } finally {
+      setSavingMatchId(null);
+    }
+  }
+
+  function confirmDelete(match: Match) {
+    Alert.alert(
+      "Supprimer le scrim",
+      `DYNO vs ${match.opponent}\n\nCette action est définitive et sera synchronisée sur tous les appareils.`,
+      [
+        { text: "Retour", style: "cancel" },
+        { text: "Supprimer", style: "destructive", onPress: () => void removeMatch(match) },
+      ],
+    );
   }
 
   function openMoreActions(match: Match) {
     Alert.alert(`DYNO vs ${match.opponent}`, "Actions supplémentaires", [
       { text: match.status === "Annulé" ? "Réactiver" : "Annuler le scrim", onPress: () => void updateMatch(match.id, { status: match.status === "Annulé" ? "En attente" : "Annulé" }) },
-      { text: "Supprimer", style: "destructive", onPress: () => Alert.alert("Supprimer le scrim", "Cette action est définitive et sera synchronisée sur tous les appareils.", [{ text: "Retour", style: "cancel" }, { text: "Supprimer", style: "destructive", onPress: () => void removeMatch(match) }]) },
+      { text: "Supprimer", style: "destructive", onPress: () => confirmDelete(match) },
       { text: "Fermer", style: "cancel" },
     ]);
   }
@@ -141,7 +169,71 @@ export default function PlanningScreen() {
 
   const detailRows = details ? roster.map((player) => ({ player, response: responseForPlayer(details, player) })) : [];
 
-  return <SafeAreaView style={styles.container}><ImageBackground source={marbleSource} style={styles.background} imageStyle={styles.backgroundImage}><View style={styles.overlay} /><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}><Text style={styles.kicker}>DYNO ESPORT MANAGER</Text><Text style={styles.title}>Agenda</Text><Text style={styles.subtitle}>Disponibilités, historique et joueurs sans réponse.</Text><View style={styles.filters}><FilterButton label="À venir" active={filter === "upcoming"} onPress={() => setFilter("upcoming")} /><FilterButton label="Historique" active={filter === "history"} onPress={() => setFilter("history")} /><FilterButton label="Annulés" active={filter === "cancelled"} onPress={() => setFilter("cancelled")} /></View>{filteredMatches.length === 0 ? <View style={styles.emptyCard}><Ionicons name="calendar-clear-outline" size={40} color={Theme.colors.goldLight} /><Text style={styles.emptyTitle}>Aucun match</Text><Text style={styles.emptyText}>Aucun match ne correspond à ce filtre.</Text></View> : filteredMatches.map((match) => { const response = match.responses.find((item) => item.uid === session?.localId)?.status ?? "En attente"; const summary = getResponseSummary(match); const isSaving = savingMatchId === match.id; const isPast = new Date(`${match.date}T${match.matchTime}:00`).getTime() < Date.now(); return <View key={match.id} style={styles.card}><View style={styles.topRow}><View style={styles.dateColumn}><Text style={styles.day}>{getDay(match.date)}</Text><Text style={styles.month}>{getMonth(match.date)}</Text></View><View style={styles.cardContent}><View style={styles.metaRow}><Text style={styles.type}>{match.type.toUpperCase()}</Text><Text style={[styles.status, match.status === "Confirmé" && styles.confirmed, match.status === "Annulé" && styles.cancelled]}>{match.status}</Text></View><Text style={styles.eventTitle}>DYNO vs {match.opponent}</Text><View style={styles.detailsRow}><Detail icon="people-outline" text={`RDV ${match.arrivalTime}`} /><Detail icon="time-outline" text={`Match ${match.matchTime}`} /><Detail icon="business-outline" text={match.arena} /></View></View></View>{!isPast && match.status !== "Annulé" ? <><Text style={styles.answerLabel}>TA DISPONIBILITÉ</Text><View style={styles.answerRow}><AnswerButton active={response === "Disponible"} positive label="Disponible" disabled={isSaving} onPress={() => void answer(match.id, "Disponible")} /><AnswerButton active={response === "Indisponible"} label="Indisponible" disabled={isSaving} onPress={() => void answer(match.id, "Indisponible")} /></View></> : null}<TouchableOpacity style={styles.summaryRow} onPress={() => setDetails(match)}><Text style={styles.summaryAvailable}>● {summary.available} dispo</Text><Text style={styles.summaryUnavailable}>● {summary.unavailable} indispo</Text><Text style={styles.summaryPending}>● {summary.pendingPlayers.length} sans réponse</Text><Ionicons name="chevron-forward" size={15} color="#999" /></TouchableOpacity>{summary.pendingPlayers.length ? <Text style={styles.pendingNames} numberOfLines={2}>{summary.pendingPlayers.map((player) => player.nickname).join(", ")}</Text> : null}{match.notes ? <Text style={styles.notes}>{match.notes}</Text> : null}<View style={styles.actionRow}>{!isPast && match.status !== "Annulé" ? <TouchableOpacity style={styles.calendarButton} onPress={() => void addToCalendar(match)}><Ionicons name="calendar-outline" size={16} color="#080808" /><Text style={styles.calendarButtonText}>CALENDRIER</Text></TouchableOpacity> : null}<TouchableOpacity style={styles.shareButton} onPress={() => void shareMatch(match)}><Ionicons name="share-social-outline" size={17} color={Theme.colors.goldLight} /><Text style={styles.shareText}>PARTAGER</Text></TouchableOpacity>{canManage ? <TouchableOpacity style={styles.manageButton} onPress={() => manage(match)}><Ionicons name="settings-outline" size={17} color={Theme.colors.goldLight} /></TouchableOpacity> : null}</View></View>; })}</ScrollView></ImageBackground><Modal visible={Boolean(details)} transparent animationType="fade" onRequestClose={() => setDetails(null)}><View style={styles.modalBackdrop}><View style={styles.modalCard}><View style={styles.modalHeader}><Text style={styles.modalTitle}>Réponses de l'équipe</Text><TouchableOpacity onPress={() => setDetails(null)}><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity></View><ScrollView>{detailRows.length ? detailRows.map(({ player, response }) => <View key={player.id} style={styles.responseRow}><Text style={styles.responsePlayer}>{player.nickname}</Text><Text style={[styles.responseStatus, response?.status === "Disponible" ? styles.responseOk : response?.status === "Indisponible" ? styles.responseNo : styles.responsePending]}>{response?.status ?? "Sans réponse"}</Text></View>) : <Text style={styles.noResponse}>Aucun membre dans l'équipe.</Text>}</ScrollView></View></View></Modal></SafeAreaView>;
+  return (
+    <SafeAreaView style={styles.container}>
+      <ImageBackground source={marbleSource} style={styles.background} imageStyle={styles.backgroundImage}>
+        <View style={styles.overlay} />
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
+          <Text style={styles.title}>Agenda</Text>
+          <Text style={styles.subtitle}>Disponibilités, historique et joueurs sans réponse.</Text>
+          <View style={styles.filters}>
+            <FilterButton label="À venir" active={filter === "upcoming"} onPress={() => setFilter("upcoming")} />
+            <FilterButton label="Historique" active={filter === "history"} onPress={() => setFilter("history")} />
+            <FilterButton label="Annulés" active={filter === "cancelled"} onPress={() => setFilter("cancelled")} />
+          </View>
+
+          {filteredMatches.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Ionicons name="calendar-clear-outline" size={40} color={Theme.colors.goldLight} />
+              <Text style={styles.emptyTitle}>Aucun match</Text>
+              <Text style={styles.emptyText}>Aucun match ne correspond à ce filtre.</Text>
+            </View>
+          ) : filteredMatches.map((match) => {
+            const response = match.responses.find((item) => item.uid === session?.localId)?.status ?? "En attente";
+            const summary = getResponseSummary(match);
+            const isSaving = savingMatchId === match.id;
+            const isPast = new Date(`${match.date}T${match.matchTime}:00`).getTime() < Date.now();
+
+            return (
+              <View key={match.id} style={styles.card}>
+                <View style={styles.topRow}>
+                  <View style={styles.dateColumn}><Text style={styles.day}>{getDay(match.date)}</Text><Text style={styles.month}>{getMonth(match.date)}</Text></View>
+                  <View style={styles.cardContent}>
+                    <View style={styles.metaRow}><Text style={styles.type}>{match.type.toUpperCase()}</Text><Text style={[styles.status, match.status === "Confirmé" && styles.confirmed, match.status === "Annulé" && styles.cancelled]}>{match.status}</Text></View>
+                    <Text style={styles.eventTitle}>DYNO vs {match.opponent}</Text>
+                    <View style={styles.detailsRow}><Detail icon="people-outline" text={`RDV ${match.arrivalTime}`} /><Detail icon="time-outline" text={`Match ${match.matchTime}`} /><Detail icon="business-outline" text={match.arena} /></View>
+                  </View>
+                </View>
+
+                {!isPast && match.status !== "Annulé" ? <><Text style={styles.answerLabel}>TA DISPONIBILITÉ</Text><View style={styles.answerRow}><AnswerButton active={response === "Disponible"} positive label="Disponible" disabled={isSaving} onPress={() => void answer(match.id, "Disponible")} /><AnswerButton active={response === "Indisponible"} label="Indisponible" disabled={isSaving} onPress={() => void answer(match.id, "Indisponible")} /></View></> : null}
+
+                <TouchableOpacity style={styles.summaryRow} onPress={() => setDetails(match)}><Text style={styles.summaryAvailable}>● {summary.available} dispo</Text><Text style={styles.summaryUnavailable}>● {summary.unavailable} indispo</Text><Text style={styles.summaryPending}>● {summary.pendingPlayers.length} sans réponse</Text><Ionicons name="chevron-forward" size={15} color="#999" /></TouchableOpacity>
+                {summary.pendingPlayers.length ? <Text style={styles.pendingNames} numberOfLines={2}>{summary.pendingPlayers.map((player) => player.nickname).join(", ")}</Text> : null}
+                {match.notes ? <Text style={styles.notes}>{match.notes}</Text> : null}
+
+                <View style={styles.actionRow}>
+                  {!isPast && match.status !== "Annulé" ? <TouchableOpacity style={styles.calendarButton} onPress={() => void addToCalendar(match)}><Ionicons name="calendar-outline" size={16} color="#080808" /><Text style={styles.calendarButtonText}>CALENDRIER</Text></TouchableOpacity> : null}
+                  <TouchableOpacity style={styles.shareButton} onPress={() => void shareMatch(match)}><Ionicons name="share-social-outline" size={17} color={Theme.colors.goldLight} /><Text style={styles.shareText}>PARTAGER</Text></TouchableOpacity>
+                  {canManage ? <TouchableOpacity accessibilityLabel="Modifier le scrim" style={styles.manageButton} onPress={() => manage(match)}><Ionicons name="settings-outline" size={18} color={Theme.colors.goldLight} /></TouchableOpacity> : null}
+                  {canManage ? <TouchableOpacity accessibilityLabel="Supprimer le scrim" disabled={isSaving} style={[styles.deleteButton, isSaving && styles.disabled]} onPress={() => confirmDelete(match)}><Ionicons name="trash-outline" size={19} color="#FF7777" /></TouchableOpacity> : null}
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      </ImageBackground>
+
+      <Modal visible={Boolean(details)} transparent animationType="fade" onRequestClose={() => setDetails(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}><Text style={styles.modalTitle}>Réponses de l'équipe</Text><TouchableOpacity onPress={() => setDetails(null)}><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity></View>
+            <ScrollView>{detailRows.length ? detailRows.map(({ player, response: playerResponse }) => <View key={player.id} style={styles.responseRow}><Text style={styles.responsePlayer}>{player.nickname}</Text><Text style={[styles.responseStatus, playerResponse?.status === "Disponible" ? styles.responseOk : playerResponse?.status === "Indisponible" ? styles.responseNo : styles.responsePending]}>{playerResponse?.status ?? "Sans réponse"}</Text></View>) : <Text style={styles.noResponse}>Aucun membre dans l'équipe.</Text>}</ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
 }
 
 function FilterButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) { return <TouchableOpacity style={[styles.filterButton, active && styles.filterActive]} onPress={onPress}><Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text></TouchableOpacity>; }
@@ -151,4 +243,14 @@ function getDay(value: string) { const date = new Date(`${value}T12:00:00`); ret
 function getMonth(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? "---" : date.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "").toUpperCase(); }
 function formatDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }); }
 
-const styles = StyleSheet.create({ container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.42 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" }, content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 170 }, kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 20 }, filters: { flexDirection: "row", gap: 10, marginBottom: 20 }, filterButton: { flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, filterActive: { backgroundColor: Theme.colors.goldLight }, filterText: { color: "#D8D8D8", fontWeight: "900", fontSize: 12 }, filterTextActive: { color: "#080808" }, emptyCard: { padding: 34, borderRadius: 24, alignItems: "center", backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 12 }, emptyText: { color: "#C8C8C8", textAlign: "center", marginTop: 8 }, card: { borderRadius: 24, padding: 17, marginBottom: 16, backgroundColor: "rgba(8,8,8,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, topRow: { flexDirection: "row" }, dateColumn: { width: 76, minHeight: 98, borderRadius: 20, backgroundColor: "#F4F0E7", alignItems: "center", justifyContent: "center", marginRight: 15 }, day: { color: "#111", fontSize: 30, fontWeight: "900" }, month: { color: "#78621D", fontSize: 12, fontWeight: "900" }, cardContent: { flex: 1 }, metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, type: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900" }, status: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900" }, confirmed: { color: "#8FDD58" }, cancelled: { color: "#FF7777" }, eventTitle: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 9 }, detailsRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 11 }, detail: { flexDirection: "row", alignItems: "center", gap: 5 }, detailText: { color: "#D2D2D2", fontSize: 12 }, answerLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", marginTop: 18, marginBottom: 9 }, answerRow: { flexDirection: "row", gap: 10 }, answerButton: { flex: 1, minHeight: 50, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.11)" }, answerPositive: { backgroundColor: "#83DD57" }, answerNegative: { backgroundColor: "#FF7777" }, answerText: { color: "#fff", fontWeight: "900", fontSize: 12 }, answerTextActive: { color: "#080808" }, disabled: { opacity: 0.55 }, summaryRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14 }, summaryAvailable: { color: "#81DD55", fontSize: 10, fontWeight: "900" }, summaryUnavailable: { color: "#FF7777", fontSize: 10, fontWeight: "900" }, summaryPending: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", flex: 1 }, pendingNames: { color: "#CFCFCF", fontSize: 11, marginTop: 8 }, notes: { color: "#D0D0D0", fontSize: 11, marginTop: 8 }, actionRow: { flexDirection: "row", gap: 9, marginTop: 16 }, calendarButton: { flex: 1.35, minHeight: 48, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: Theme.colors.goldLight }, calendarButtonText: { color: "#080808", fontSize: 11, fontWeight: "900" }, shareButton: { flex: 1.35, minHeight: 48, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" }, shareText: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900" }, manageButton: { width: 48, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" }, modalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.82)" }, modalCard: { maxHeight: "70%", borderRadius: 24, padding: 18, backgroundColor: "#101010", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.15)" }, modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }, modalTitle: { color: "#fff", fontSize: 18, fontWeight: "900" }, responseRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.1)" }, responsePlayer: { color: "#fff", fontWeight: "800" }, responseStatus: { fontWeight: "900" }, responseOk: { color: "#83DD57" }, responseNo: { color: "#FF7777" }, responsePending: { color: Theme.colors.goldLight }, noResponse: { color: "#C8C8C8", textAlign: "center", paddingVertical: 20 } });
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.42 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" }, content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 170 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 20 },
+  filters: { flexDirection: "row", gap: 10, marginBottom: 20 }, filterButton: { flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, filterActive: { backgroundColor: Theme.colors.goldLight }, filterText: { color: "#D8D8D8", fontWeight: "900", fontSize: 12 }, filterTextActive: { color: "#080808" },
+  emptyCard: { padding: 34, borderRadius: 24, alignItems: "center", backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 12 }, emptyText: { color: "#C8C8C8", textAlign: "center", marginTop: 8 },
+  card: { borderRadius: 24, padding: 17, marginBottom: 16, backgroundColor: "rgba(8,8,8,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, topRow: { flexDirection: "row" }, dateColumn: { width: 76, minHeight: 98, borderRadius: 20, backgroundColor: "#F4F0E7", alignItems: "center", justifyContent: "center", marginRight: 15 }, day: { color: "#111", fontSize: 30, fontWeight: "900" }, month: { color: "#78621D", fontSize: 12, fontWeight: "900" }, cardContent: { flex: 1 }, metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" }, type: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900" }, status: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900" }, confirmed: { color: "#8FDD58" }, cancelled: { color: "#FF7777" }, eventTitle: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 9 }, detailsRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 11 }, detail: { flexDirection: "row", alignItems: "center", gap: 5 }, detailText: { color: "#D2D2D2", fontSize: 12 },
+  answerLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", marginTop: 18, marginBottom: 9 }, answerRow: { flexDirection: "row", gap: 10 }, answerButton: { flex: 1, minHeight: 50, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.11)" }, answerPositive: { backgroundColor: "#83DD57" }, answerNegative: { backgroundColor: "#FF7777" }, answerText: { color: "#fff", fontWeight: "900", fontSize: 12 }, answerTextActive: { color: "#080808" }, disabled: { opacity: 0.55 },
+  summaryRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 14 }, summaryAvailable: { color: "#81DD55", fontSize: 10, fontWeight: "900" }, summaryUnavailable: { color: "#FF7777", fontSize: 10, fontWeight: "900" }, summaryPending: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", flex: 1 }, pendingNames: { color: "#CFCFCF", fontSize: 11, marginTop: 8 }, notes: { color: "#D0D0D0", fontSize: 11, marginTop: 8 },
+  actionRow: { flexDirection: "row", gap: 8, marginTop: 16 }, calendarButton: { flex: 1.35, minHeight: 48, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: Theme.colors.goldLight }, calendarButtonText: { color: "#080808", fontSize: 11, fontWeight: "900" }, shareButton: { flex: 1.2, minHeight: 48, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" }, shareText: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900" }, manageButton: { width: 46, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" }, deleteButton: { width: 46, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(130,20,20,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.35)" },
+  modalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.82)" }, modalCard: { maxHeight: "70%", borderRadius: 24, padding: 18, backgroundColor: "#101010", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.15)" }, modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }, modalTitle: { color: "#fff", fontSize: 18, fontWeight: "900" }, responseRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.1)" }, responsePlayer: { color: "#fff", fontWeight: "800" }, responseStatus: { fontWeight: "900" }, responseOk: { color: "#83DD57" }, responseNo: { color: "#FF7777" }, responsePending: { color: Theme.colors.goldLight }, noResponse: { color: "#C8C8C8", textAlign: "center", paddingVertical: 20 },
+});

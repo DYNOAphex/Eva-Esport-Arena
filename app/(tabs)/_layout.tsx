@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Updates from "expo-updates";
 import { Tabs } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Platform, StyleSheet, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
 import { canCreateScrim } from "../../services/accessControl";
-import { checkForAppUpdate, openAppUpdate } from "../../services/appUpdateService";
 import { getStoredSession } from "../../services/authService";
 import { getMatches, subscribeToMatches } from "../../services/matchStore";
 import type { AuthSession } from "../../services/authService";
@@ -31,19 +31,21 @@ export default function TabsLayout() {
     void getStoredSession().then(setSession);
     void getMatches().then(setMatches);
 
-    if (Platform.OS === "android") {
-      void checkForAppUpdate().then((info) => {
-        if (!info.updateAvailable) return;
-        const notes = info.releaseNotes.length ? `\n\n${info.releaseNotes.slice(0, 3).map((note) => `• ${note}`).join("\n")}` : "";
-        Alert.alert(
-          "Mise à jour DYNO disponible",
-          `La version ${info.latestVersion} est disponible. Tu utilises actuellement la version ${info.installedVersion}.${notes}`,
-          [
-            { text: "Plus tard", style: "cancel" },
-            { text: "Télécharger", onPress: () => void openAppUpdate(info).catch(() => Alert.alert("Mise à jour", "Le téléchargement n'a pas pu être ouvert.")) },
-          ],
-        );
-      }).catch(() => null);
+    if (Platform.OS === "android" && Updates.isEnabled) {
+      void Updates.checkForUpdateAsync()
+        .then(async (update) => {
+          if (!update.isAvailable) return;
+          await Updates.fetchUpdateAsync();
+          Alert.alert(
+            "Mise à jour DYNO prête",
+            "La mise à jour a été téléchargée directement dans l'application. Redémarre DYNO pour l'appliquer.",
+            [
+              { text: "Plus tard", style: "cancel" },
+              { text: "Redémarrer", onPress: () => void Updates.reloadAsync() },
+            ],
+          );
+        })
+        .catch(() => null);
     }
 
     return subscribeToMatches(setMatches);

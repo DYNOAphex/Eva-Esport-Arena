@@ -4,6 +4,7 @@ import { Alert, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, Touchable
 
 import { Theme } from "../../constants/theme";
 import { getScrimPermissions } from "../../services/accessControl";
+import { getRoster, RosterPlayer, subscribeToRoster } from "../../services/rosterStore";
 import {
   createSupportReport,
   deleteSupportReport,
@@ -17,6 +18,7 @@ export default function SupportScreen() {
   const [message, setMessage] = useState("");
   const [canManage, setCanManage] = useState(false);
   const [reports, setReports] = useState<SupportReport[]>([]);
+  const [roster, setRoster] = useState<RosterPlayer[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
 
   const loadReports = useCallback(async () => {
@@ -34,9 +36,20 @@ export default function SupportScreen() {
 
   useEffect(() => {
     void loadReports();
+    void getRoster().then(setRoster);
+    const unsubscribeRoster = subscribeToRoster(setRoster);
     const timer = setInterval(() => void loadReports(), 10000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      unsubscribeRoster();
+    };
   }, [loadReports]);
+
+  function playerName(report: SupportReport) {
+    const player = roster.find((item) => item.accountUid === report.userId)
+      ?? roster.find((item) => item.accountEmail?.trim().toLowerCase() === report.email.trim().toLowerCase());
+    return player?.nickname || report.email.split("@")[0].replace(/[._-]+/g, " ").trim() || "Joueur DYNO";
+  }
 
   async function sendReport() {
     const description = message.trim();
@@ -71,7 +84,7 @@ export default function SupportScreen() {
   function confirmDelete(report: SupportReport) {
     Alert.alert(
       "Supprimer le signalement",
-      `Le message de ${report.email} sera supprimé définitivement.`,
+      `Le message de ${playerName(report)} sera supprimé définitivement.`,
       [
         { text: "Annuler", style: "cancel" },
         {
@@ -138,7 +151,7 @@ export default function SupportScreen() {
                   <Text style={styles.reportDate}>{formatDate(report.createdAt)}</Text>
                 </View>
 
-                <Text style={styles.reportEmail}>{report.email}</Text>
+                <Text style={styles.reportPlayer}>{playerName(report)}</Text>
                 <Text style={styles.reportMessage}>{report.message}</Text>
 
                 <View style={styles.diagnosticBox}>
@@ -204,7 +217,7 @@ const styles = StyleSheet.create({
   statusText: { color: "#FF7777", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   statusTextResolved: { color: "#83DD57" },
   reportDate: { color: "#8F8F8F", fontSize: 10, fontWeight: "700" },
-  reportEmail: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900", marginTop: 13 },
+  reportPlayer: { color: Theme.colors.goldLight, fontSize: 14, fontWeight: "900", marginTop: 13 },
   reportMessage: { color: "#fff", fontSize: 16, lineHeight: 23, fontWeight: "700", marginTop: 7 },
   diagnosticBox: { marginTop: 14, padding: 12, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.045)" },
   diagnosticText: { color: "#BDBDBD", fontSize: 11, lineHeight: 17 },

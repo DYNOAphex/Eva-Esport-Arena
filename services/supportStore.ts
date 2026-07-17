@@ -66,6 +66,21 @@ async function firestoreRequest(url: string, init: RequestInit = {}) {
   });
 }
 
+async function firestoreError(response: Response, fallback: string) {
+  let detail = "";
+  try {
+    const body = await response.json() as { error?: { message?: string; status?: string } };
+    detail = body.error?.message ?? body.error?.status ?? "";
+  } catch {
+    // Réponse non JSON.
+  }
+
+  if (response.status === 401) return new Error("Ta session a expiré. Reconnecte-toi puis renvoie le signalement.");
+  if (response.status === 403) return new Error("Firebase a refusé l’envoi. Les règles Support ne sont peut-être pas encore déployées.");
+  if (response.status >= 500) return new Error("Le service Firebase est momentanément indisponible. Réessaie dans quelques instants.");
+  return new Error(detail ? `${fallback} (${detail})` : fallback);
+}
+
 function reportToFields(report: SupportReport): Record<string, FirestoreValue> {
   return {
     message: stringValue(report.message),
@@ -143,12 +158,17 @@ export async function createSupportReport(message: string) {
     status: "Nouveau",
   };
 
-  const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(report.id)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ fields: reportToFields(report) }),
-  });
+  let response: Response;
+  try {
+    response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(report.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ fields: reportToFields(report) }),
+    });
+  } catch {
+    throw new Error("Aucune connexion au service Support. Vérifie Internet puis réessaie.");
+  }
 
-  if (!response.ok) throw new Error("Le signalement n’a pas pu être envoyé.");
+  if (!response.ok) throw await firestoreError(response, "Le signalement n’a pas pu être envoyé.");
   return report;
 }
 
@@ -157,7 +177,7 @@ export async function getSupportReports() {
   if (!permissions.canManage) return [];
 
   const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`);
-  if (!response.ok) throw new Error("Les signalements n’ont pas pu être chargés.");
+  if (!response.ok) throw await firestoreError(response, "Les signalements n’ont pas pu être chargés.");
 
   const data = (await response.json()) as { documents?: FirestoreDocument[] };
   return (data.documents ?? [])
@@ -175,7 +195,7 @@ export async function updateSupportReportStatus(report: SupportReport, status: S
     body: JSON.stringify({ fields: reportToFields(updated) }),
   });
 
-  if (!response.ok) throw new Error("Le signalement n’a pas pu être modifié.");
+  if (!response.ok) throw await firestoreError(response, "Le signalement n’a pas pu être modifié.");
   return updated;
 }
 
@@ -184,5 +204,5 @@ export async function deleteSupportReport(reportId: string) {
   if (!permissions.canManage) throw new Error("Action réservée à l’administrateur.");
 
   const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(reportId)}`, { method: "DELETE" });
-  if (!response.ok && response.status !== 404) throw new Error("Le signalement n’a pas pu être supprimé.");
+  if (!response.ok && response.status !== 404) throw await firestoreError(response, "Le signalement n’a pas pu être supprimé.");
 }

@@ -60,6 +60,16 @@ function documentToMatch(document: FirestoreDocument): Match {
 async function firestoreRequest(url: string, init: RequestInit = {}) { const session = await requireUser(); return fetch(url, { ...init, headers: { Authorization: `Bearer ${session.idToken}`, "Content-Type": "application/json", ...(init.headers ?? {}) } }); }
 async function fetchCloudMatches() { const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`); if (!response.ok) throw new Error("Synchronisation Firebase impossible."); const data = (await response.json()) as { documents?: FirestoreDocument[] }; return sortMatches((data.documents ?? []).map(documentToMatch)); }
 async function uploadMatch(match: Match) { const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(match.id)}`, { method: "PATCH", body: JSON.stringify({ fields: matchToFields(match) }) }); if (!response.ok) throw new Error("Enregistrement Firebase impossible."); }
+async function uploadResponsesOnly(matchId: string, responses: PlayerResponse[]) {
+  const url = `${FIRESTORE_BASE}/${encodeURIComponent(matchId)}?updateMask.fieldPaths=responses`;
+  const response = await firestoreRequest(url, {
+    method: "PATCH",
+    body: JSON.stringify({ fields: { responses: { arrayValue: { values: responses.map(responseToFirestore) } } } }),
+  });
+  if (response.status === 401) throw new Error("Ta session a expiré. Reconnecte-toi puis réessaie.");
+  if (response.status === 403) throw new Error("Firebase a refusé ta disponibilité. Ferme puis rouvre DYNO et reconnecte-toi.");
+  if (!response.ok) throw new Error("Ta disponibilité n’a pas pu être enregistrée.");
+}
 async function notifyDiscordImmediately(match: Match, idToken: string) {
   const response = await fetch(DISCORD_WORKER_URL, {
     method: "POST",
@@ -112,7 +122,8 @@ export async function setMatchAvailability(matchId: string, availability: Exclud
     changed = { ...match, responses }; return changed;
   });
   if (!changed) throw new Error("Ce rendez-vous n'existe plus.");
-  await uploadMatch(changed); await persist(updated);
+  await uploadResponsesOnly(changed.id, changed.responses);
+  await persist(updated);
 }
 export async function deleteMatch(matchId: string) { await requireManagePermission(); await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const response = await firestoreRequest(`${FIRESTORE_BASE}/${encodeURIComponent(matchId)}`, { method: "DELETE" }); if (!response.ok && response.status !== 404) throw new Error("Suppression Firebase impossible."); await persist(matches.filter((match) => match.id !== matchId)); }
 export function subscribeToMatches(listener: (matches: Match[]) => void) { listeners.add(listener); if (latestMatches.length) listener(latestMatches); void syncFromCloud(); if (!pollTimer) pollTimer = setInterval(() => void syncFromCloud(), 5000); return () => { listeners.delete(listener); if (!listeners.size && pollTimer) { clearInterval(pollTimer); pollTimer = null; } }; }

@@ -35,6 +35,16 @@ service cloud.firestore {
         && request.resource.data.accountEmail is string;
     }
 
+    function ownNicknameOnlyUpdate() {
+      return signedIn()
+        && resource.data.accountUid == request.auth.uid
+        && request.resource.data.accountUid == resource.data.accountUid
+        && request.resource.data.accountEmail == resource.data.accountEmail
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname'])
+        && validRosterPlayer();
+    }
+
     function validSupportReport() {
       return request.resource.data.keys().hasOnly([
           'message',
@@ -74,7 +84,8 @@ service cloud.firestore {
 
     match /roster/{playerId} {
       allow read: if signedIn();
-      allow create, update: if isAdmin() && validRosterPlayer();
+      allow create: if isAdmin() && validRosterPlayer();
+      allow update: if (isAdmin() && validRosterPlayer()) || ownNicknameOnlyUpdate();
       allow delete: if isAdmin();
     }
 

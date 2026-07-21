@@ -21,8 +21,8 @@ export async function getPlayerScrimAccess(player: RosterPlayer) {
   });
   if (response.status === 404) return false;
   if (!response.ok) throw new Error("Lecture des droits impossible.");
-  const document = await response.json() as { fields?: { canCreateScrim?: { booleanValue?: boolean } } };
-  return document.fields?.canCreateScrim?.booleanValue === true;
+  const document = await response.json() as { fields?: { canCreateScrim?: { booleanValue?: boolean }; canManageScrims?: { booleanValue?: boolean } } };
+  return document.fields?.canCreateScrim?.booleanValue === true || document.fields?.canManageScrims?.booleanValue === true;
 }
 
 export async function getPlayersScrimAccess(players: RosterPlayer[]) {
@@ -43,7 +43,7 @@ export async function setPlayerScrimAccess(player: RosterPlayer, enabled: boolea
     body: JSON.stringify({
       fields: {
         canCreateScrim: { booleanValue: enabled },
-        canManageScrims: { booleanValue: false },
+        canManageScrims: { booleanValue: enabled },
         nickname: { stringValue: player.nickname },
       },
     }),

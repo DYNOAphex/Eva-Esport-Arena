@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import AppUpdatePrompt from "../components/AppUpdatePrompt";
 import WebInstallPrompt from "../components/WebInstallPrompt";
 import { Theme } from "../constants/theme";
 import { getAppSettings } from "../services/appSettings";
@@ -58,6 +59,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Theme.colors.background } }} />
+      <AppUpdatePrompt />
       <WebInstallPrompt />
     </SafeAreaProvider>
   );

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, ImageBackground, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
-import { getPlayerScrimAccess, setPlayerScrimAccess } from "../../services/accessAdmin";
+import { getPlayersScrimAccess, setPlayerScrimAccess } from "../../services/accessAdmin";
 import { getStoredSession } from "../../services/authService";
 import { getMatches, Match, subscribeToMatches } from "../../services/matchStore";
 import {
@@ -23,15 +23,21 @@ const OWNER_EMAIL = "thibaut.llorens@hotmail.com";
 
 type ModalMode = "add" | "edit";
 
+type MemberRole = "Administrateur" | "Créateur de scrims" | "Joueur";
+
 export default function TeamScreen() {
   const [members, setMembers] = useState<RosterPlayer[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [currentUid, setCurrentUid] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [scrimAccess, setScrimAccess] = useState<Record<string, boolean>>({});
   const [modalVisible, setModalVisible] = useState(false);
+  const [permissionModalVisible, setPermissionModalVisible] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<RosterPlayer | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [nickname, setNickname] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savingPermission, setSavingPermission] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -40,7 +46,8 @@ export default function TeamScreen() {
     void getStoredSession().then(async (session) => {
       if (!session) return;
       setCurrentUid(session.localId);
-      setIsOwner(session.email.toLowerCase() === OWNER_EMAIL);
+      const owner = session.email.toLowerCase() === OWNER_EMAIL;
+      setIsOwner(owner);
       const provisionalNickname = session.email.split("@")[0].replace(/[._-]+/g, " ").trim() || "Joueur DYNO";
       const player = await ensureCurrentAccountRosterPlayer(provisionalNickname).catch(() => null);
       if (player && active) setMembers((items) => items.some((item) => item.id === player.id) ? items.map((item) => item.id === player.id ? player : item) : [...items, player]);
@@ -49,6 +56,11 @@ export default function TeamScreen() {
     const unsubscribeMatches = subscribeToMatches(setMatches);
     return () => { active = false; unsubscribeRoster(); unsubscribeMatches(); };
   }, []);
+
+  useEffect(() => {
+    if (!isOwner || !members.length) return;
+    void getPlayersScrimAccess(members).then(setScrimAccess).catch(() => null);
+  }, [isOwner, members]);
 
   function openAddModal() {
     setModalMode("add");
@@ -60,6 +72,12 @@ export default function TeamScreen() {
     setModalMode("edit");
     setNickname(member.nickname);
     setModalVisible(true);
+  }
+
+  function getRole(member: RosterPlayer): MemberRole {
+    if (member.accountEmail?.toLowerCase() === OWNER_EMAIL) return "Administrateur";
+    if (member.accountUid && scrimAccess[member.accountUid]) return "Créateur de scrims";
+    return "Joueur";
   }
 
   async function savePlayer() {
@@ -88,40 +106,36 @@ export default function TeamScreen() {
     ]);
   }
 
-  async function changeScrimAccess(member: RosterPlayer) {
+  function openPermissions(member: RosterPlayer) {
+    setSelectedMember(member);
+    setPermissionModalVisible(true);
+  }
+
+  async function updatePermission(enabled: boolean) {
+    if (!selectedMember || savingPermission) return;
+    setSavingPermission(true);
     try {
-      const enabled = await getPlayerScrimAccess(member);
-      Alert.alert(
-        "Droit de créer des scrims",
-        enabled ? `${member.nickname} peut actuellement créer des scrims.` : `${member.nickname} ne peut pas encore créer de scrims.`,
-        [
-          { text: "Annuler", style: "cancel" },
-          {
-            text: enabled ? "Retirer le droit" : "Autoriser",
-            style: enabled ? "destructive" : "default",
-            onPress: () => void setPlayerScrimAccess(member, !enabled)
-              .then(() => Alert.alert("Droits mis à jour", enabled ? `${member.nickname} ne peut plus créer de scrims.` : `${member.nickname} peut maintenant créer des scrims.`))
-              .catch((error) => Alert.alert("Droits", error instanceof Error ? error.message : "Modification impossible.")),
-          },
-        ],
-      );
+      await setPlayerScrimAccess(selectedMember, enabled);
+      if (selectedMember.accountUid) setScrimAccess((current) => ({ ...current, [selectedMember.accountUid!]: enabled }));
+      setPermissionModalVisible(false);
+      Alert.alert("Droits mis à jour", enabled ? `${selectedMember.nickname} peut maintenant créer des scrims.` : `${selectedMember.nickname} est maintenant joueur.`);
     } catch (error) {
-      Alert.alert("Droits", error instanceof Error ? error.message : "Lecture impossible.");
-    }
+      Alert.alert("Droits", error instanceof Error ? error.message : "Modification impossible.");
+    } finally { setSavingPermission(false); }
   }
 
   function openMemberActions(member: RosterPlayer) {
     const isCurrentUser = member.accountUid === currentUid;
     const actions = [
       ...(isCurrentUser ? [{ text: "Modifier mon pseudo", onPress: () => openEditModal(member) }] : []),
-      ...(isOwner && member.accountUid && !isCurrentUser ? [{ text: "Gérer le droit de créer des scrims", onPress: () => void changeScrimAccess(member) }] : []),
+      ...(isOwner && member.accountUid && getRole(member) !== "Administrateur" ? [{ text: "Gérer les permissions", onPress: () => openPermissions(member) }] : []),
       ...(isOwner ? (member.accountUid
         ? [{ text: "Dissocier le compte", onPress: () => void unlinkPlayerAccount(member.id).catch((error) => Alert.alert("Équipe", error instanceof Error ? error.message : "Dissociation impossible.")) }]
         : [{ text: "Associer mon compte", onPress: () => void linkCurrentAccountToPlayer(member.id).catch((error) => Alert.alert("Équipe", error instanceof Error ? error.message : "Association impossible.")) }]) : []),
-      ...(isOwner ? [{ text: "Retirer de l'équipe", style: "destructive" as const, onPress: () => confirmDelete(member) }] : []),
+      ...(isOwner && getRole(member) !== "Administrateur" ? [{ text: "Retirer de l'équipe", style: "destructive" as const, onPress: () => confirmDelete(member) }] : []),
       { text: "Fermer", style: "cancel" as const },
     ];
-    Alert.alert(member.nickname, member.accountUid ? "Compte lié" : "Aucun compte associé", actions);
+    Alert.alert(member.nickname, `${getRole(member)} · ${member.accountUid ? "Compte lié" : "Aucun compte associé"}`, actions);
   }
 
   function getAttendance(member: RosterPlayer) {
@@ -144,7 +158,7 @@ export default function TeamScreen() {
             <View style={styles.headingText}>
               <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
               <Text style={styles.title}>Équipe</Text>
-              <Text style={styles.subtitle}>{isOwner ? "Gère les membres, leurs pseudos et leurs droits." : "Consulte les membres et tes statistiques de présence."}</Text>
+              <Text style={styles.subtitle}>{isOwner ? "Gère les membres, leurs pseudos et leurs rôles." : "Consulte les membres et tes statistiques de présence."}</Text>
             </View>
             {isOwner ? <TouchableOpacity style={styles.addButton} onPress={openAddModal} activeOpacity={0.85}><Ionicons name="person-add" size={22} color="#111" /></TouchableOpacity> : null}
           </View>
@@ -154,25 +168,30 @@ export default function TeamScreen() {
           {members.map((member) => {
             const attendance = getAttendance(member);
             const isCurrentUser = member.accountUid === currentUid;
+            const role = getRole(member);
             return (
               <Pressable key={member.id} style={[styles.card, isCurrentUser && styles.currentCard]} onPress={() => openMemberActions(member)}>
                 <View style={styles.memberHeader}>
                   <Text style={styles.name}>{member.nickname}</Text>
-                  <View style={[styles.linkBadge, member.accountUid && styles.linkBadgeActive]}>
-                    <Ionicons name={member.accountUid ? "link" : "unlink"} size={13} color={member.accountUid ? "#84D956" : "#A8A8A8"} />
-                    <Text style={[styles.linkText, member.accountUid && styles.linkTextActive]}>{isCurrentUser ? "Mon compte" : member.accountUid ? "Compte lié" : "À associer"}</Text>
+                  <View style={[styles.roleBadge, role === "Administrateur" ? styles.adminRole : role === "Créateur de scrims" ? styles.creatorRole : styles.playerRole]}>
+                    <Ionicons name={role === "Administrateur" ? "shield-checkmark" : role === "Créateur de scrims" ? "add-circle" : "person"} size={13} color={role === "Administrateur" ? "#FFD86A" : role === "Créateur de scrims" ? "#7CCBFF" : "#BDBDBD"} />
+                    <Text style={[styles.roleText, role === "Administrateur" ? styles.adminRoleText : role === "Créateur de scrims" ? styles.creatorRoleText : styles.playerRoleText]}>{role}</Text>
                   </View>
+                </View>
+                <View style={styles.accountRow}>
+                  <Ionicons name={member.accountUid ? "link" : "unlink"} size={13} color={member.accountUid ? "#84D956" : "#A8A8A8"} />
+                  <Text style={[styles.linkText, member.accountUid && styles.linkTextActive]}>{isCurrentUser ? "Mon compte" : member.accountUid ? "Compte lié" : "À associer"}</Text>
                 </View>
                 <Text style={styles.presenceLabel}>PRÉSENCE</Text>
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${attendance.rate}%` }]} /></View>
                 <Text style={styles.presenceText}>{attendance.total ? `${attendance.present}/${attendance.total} réponses positives · ${attendance.rate}%` : "Aucune réponse enregistrée"}</Text>
-                {isCurrentUser ? <Text style={styles.editHint}>Appuie pour modifier ton pseudo</Text> : isOwner && member.accountUid ? <Text style={styles.adminHint}>Appuie pour gérer ses droits</Text> : null}
+                {isCurrentUser ? <Text style={styles.editHint}>Appuie pour modifier ton pseudo</Text> : isOwner && member.accountUid ? <Text style={styles.adminHint}>Appuie pour gérer ses permissions</Text> : null}
               </Pressable>
             );
           })}
 
           {!members.length && <Text style={styles.empty}>Aucun joueur dans l'équipe.</Text>}
-          <Text style={styles.hint}>Appuie sur un joueur pour afficher les actions disponibles.</Text>
+          <Text style={styles.hint}>Les badges indiquent les droits actifs de chaque membre.</Text>
         </ScrollView>
       </ImageBackground>
 
@@ -181,6 +200,24 @@ export default function TeamScreen() {
           <View style={styles.modalHeader}><Text style={styles.modalTitle}>{modalMode === "edit" ? "Modifier mon pseudo" : "Ajouter un joueur"}</Text><TouchableOpacity onPress={() => setModalVisible(false)}><Ionicons name="close" size={25} color="#fff" /></TouchableOpacity></View>
           <TextInput value={nickname} onChangeText={setNickname} placeholder="Pseudo" placeholderTextColor="#777" style={styles.input} autoCapitalize="none" maxLength={24} />
           <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={savePlayer} disabled={saving}><Text style={styles.saveText}>{saving ? "Enregistrement…" : modalMode === "edit" ? "Enregistrer le pseudo" : "Ajouter à l'équipe"}</Text></TouchableOpacity>
+        </View></View>
+      </Modal>
+
+      <Modal visible={permissionModalVisible} transparent animationType="slide" onRequestClose={() => setPermissionModalVisible(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.modalCard}>
+          <View style={styles.modalHeader}><View><Text style={styles.modalTitle}>Gérer les permissions</Text><Text style={styles.permissionName}>{selectedMember?.nickname}</Text></View><TouchableOpacity onPress={() => setPermissionModalVisible(false)}><Ionicons name="close" size={25} color="#fff" /></TouchableOpacity></View>
+          <Text style={styles.permissionIntro}>Choisis le rôle de ce membre. Le changement est synchronisé sur Android et Safari.</Text>
+          <TouchableOpacity style={[styles.permissionChoice, selectedMember?.accountUid && !scrimAccess[selectedMember.accountUid] && styles.permissionChoiceActive]} onPress={() => void updatePermission(false)} disabled={savingPermission}>
+            <View style={styles.permissionIcon}><Ionicons name="person" size={22} color="#D0D0D0" /></View>
+            <View style={styles.permissionText}><Text style={styles.permissionTitle}>Joueur</Text><Text style={styles.permissionDescription}>Peut consulter les rendez-vous et répondre à ses disponibilités.</Text></View>
+            {selectedMember?.accountUid && !scrimAccess[selectedMember.accountUid] ? <Ionicons name="checkmark-circle" size={22} color="#84D956" /> : null}
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.permissionChoice, selectedMember?.accountUid && scrimAccess[selectedMember.accountUid] && styles.permissionChoiceActive]} onPress={() => void updatePermission(true)} disabled={savingPermission}>
+            <View style={[styles.permissionIcon, styles.creatorIcon]}><Ionicons name="add-circle" size={22} color="#7CCBFF" /></View>
+            <View style={styles.permissionText}><Text style={styles.permissionTitle}>Créateur de scrims</Text><Text style={styles.permissionDescription}>Peut créer des scrims et des rendez-vous Replay / Strat.</Text></View>
+            {selectedMember?.accountUid && scrimAccess[selectedMember.accountUid] ? <Ionicons name="checkmark-circle" size={22} color="#84D956" /> : null}
+          </TouchableOpacity>
+          {savingPermission ? <Text style={styles.savingPermission}>Mise à jour des droits…</Text> : null}
         </View></View>
       </Modal>
     </SafeAreaView>
@@ -192,7 +229,10 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 150 }, headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headingText: { flex: 1 },
   kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 22, lineHeight: 20 }, addButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginLeft: 12 },
   summaryCard: { alignItems: "center", borderRadius: 24, padding: 16, marginBottom: 14, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, summaryValue: { color: "#fff", fontSize: 28, fontWeight: "900" }, summaryLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "800", marginTop: 4 },
-  card: { borderRadius: 24, padding: 17, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, currentCard: { borderColor: "rgba(132,217,86,0.35)" }, memberHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, name: { flex: 1, color: "#fff", fontWeight: "900", fontSize: 18 }, linkBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, minHeight: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)" }, linkBadgeActive: { backgroundColor: "rgba(132,217,86,0.1)" }, linkText: { color: "#A8A8A8", fontSize: 10, fontWeight: "800" }, linkTextActive: { color: "#84D956" }, presenceLabel: { color: Theme.colors.goldLight, marginTop: 13, fontSize: 10, fontWeight: "900", letterSpacing: 1 }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 7, overflow: "hidden" }, progressFill: { height: "100%", borderRadius: 4, backgroundColor: Theme.colors.goldLight }, presenceText: { color: "#C8C8C8", marginTop: 7, fontSize: 11, fontWeight: "700" }, editHint: { color: "#84D956", fontSize: 10, marginTop: 10, fontWeight: "800" }, adminHint: { color: Theme.colors.goldLight, fontSize: 10, marginTop: 10, fontWeight: "800" },
+  card: { borderRadius: 24, padding: 17, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, currentCard: { borderColor: "rgba(132,217,86,0.35)" }, memberHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, name: { flex: 1, color: "#fff", fontWeight: "900", fontSize: 18 },
+  roleBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, minHeight: 28, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth }, adminRole: { backgroundColor: "rgba(224,184,67,0.12)", borderColor: "rgba(255,216,106,0.35)" }, creatorRole: { backgroundColor: "rgba(80,160,220,0.12)", borderColor: "rgba(124,203,255,0.35)" }, playerRole: { backgroundColor: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.12)" }, roleText: { fontSize: 9, fontWeight: "900" }, adminRoleText: { color: "#FFD86A" }, creatorRoleText: { color: "#7CCBFF" }, playerRoleText: { color: "#BDBDBD" },
+  accountRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8 }, linkText: { color: "#A8A8A8", fontSize: 10, fontWeight: "800" }, linkTextActive: { color: "#84D956" }, presenceLabel: { color: Theme.colors.goldLight, marginTop: 13, fontSize: 10, fontWeight: "900", letterSpacing: 1 }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 7, overflow: "hidden" }, progressFill: { height: "100%", borderRadius: 4, backgroundColor: Theme.colors.goldLight }, presenceText: { color: "#C8C8C8", marginTop: 7, fontSize: 11, fontWeight: "700" }, editHint: { color: "#84D956", fontSize: 10, marginTop: 10, fontWeight: "800" }, adminHint: { color: Theme.colors.goldLight, fontSize: 10, marginTop: 10, fontWeight: "800" },
   empty: { color: "#C8C8C8", textAlign: "center", paddingVertical: 30 }, hint: { color: "#8E8E8E", fontSize: 10, textAlign: "center", marginTop: 4 },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" }, modalCard: { backgroundColor: "#111", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: 34, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }, modalTitle: { color: "#fff", fontSize: 22, fontWeight: "900" }, input: { height: 50, borderRadius: 16, paddingHorizontal: 15, color: "#fff", backgroundColor: "#1A1A1A", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, saveButton: { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginTop: 16 }, disabled: { opacity: 0.55 }, saveText: { color: "#111", fontWeight: "900", fontSize: 15 },
+  permissionName: { color: Theme.colors.goldLight, fontWeight: "800", marginTop: 3 }, permissionIntro: { color: "#BDBDBD", lineHeight: 19, marginBottom: 15 }, permissionChoice: { minHeight: 86, borderRadius: 18, padding: 14, marginTop: 10, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }, permissionChoiceActive: { borderColor: "rgba(132,217,86,0.45)", backgroundColor: "rgba(132,217,86,0.06)" }, permissionIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)" }, creatorIcon: { backgroundColor: "rgba(80,160,220,0.1)" }, permissionText: { flex: 1 }, permissionTitle: { color: "#fff", fontWeight: "900", fontSize: 15 }, permissionDescription: { color: "#AFAFAF", fontSize: 11, lineHeight: 16, marginTop: 3 }, savingPermission: { color: Theme.colors.goldLight, textAlign: "center", marginTop: 16, fontWeight: "800" },
 });

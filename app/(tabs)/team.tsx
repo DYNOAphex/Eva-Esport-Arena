@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, ImageBackground, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import { Theme } from "../../constants/theme";
+import { getPlayerScrimAccess, setPlayerScrimAccess } from "../../services/accessAdmin";
 import { getStoredSession } from "../../services/authService";
 import { getMatches, Match, subscribeToMatches } from "../../services/matchStore";
 import {
@@ -18,6 +19,7 @@ import {
 import { updateCurrentRosterNickname } from "../../services/rosterProfile";
 
 const marbleSource = require("../../assets/images/background-marble.jpg");
+const OWNER_EMAIL = "thibaut.llorens@hotmail.com";
 
 type ModalMode = "add" | "edit";
 
@@ -25,6 +27,7 @@ export default function TeamScreen() {
   const [members, setMembers] = useState<RosterPlayer[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [currentUid, setCurrentUid] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
   const [nickname, setNickname] = useState("");
@@ -37,6 +40,7 @@ export default function TeamScreen() {
     void getStoredSession().then(async (session) => {
       if (!session) return;
       setCurrentUid(session.localId);
+      setIsOwner(session.email.toLowerCase() === OWNER_EMAIL);
       const provisionalNickname = session.email.split("@")[0].replace(/[._-]+/g, " ").trim() || "Joueur DYNO";
       const player = await ensureCurrentAccountRosterPlayer(provisionalNickname).catch(() => null);
       if (player && active) setMembers((items) => items.some((item) => item.id === player.id) ? items.map((item) => item.id === player.id ? player : item) : [...items, player]);
@@ -84,14 +88,37 @@ export default function TeamScreen() {
     ]);
   }
 
+  async function changeScrimAccess(member: RosterPlayer) {
+    try {
+      const enabled = await getPlayerScrimAccess(member);
+      Alert.alert(
+        "Droit de créer des scrims",
+        enabled ? `${member.nickname} peut actuellement créer des scrims.` : `${member.nickname} ne peut pas encore créer de scrims.`,
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: enabled ? "Retirer le droit" : "Autoriser",
+            style: enabled ? "destructive" : "default",
+            onPress: () => void setPlayerScrimAccess(member, !enabled)
+              .then(() => Alert.alert("Droits mis à jour", enabled ? `${member.nickname} ne peut plus créer de scrims.` : `${member.nickname} peut maintenant créer des scrims.`))
+              .catch((error) => Alert.alert("Droits", error instanceof Error ? error.message : "Modification impossible.")),
+          },
+        ],
+      );
+    } catch (error) {
+      Alert.alert("Droits", error instanceof Error ? error.message : "Lecture impossible.");
+    }
+  }
+
   function openMemberActions(member: RosterPlayer) {
     const isCurrentUser = member.accountUid === currentUid;
     const actions = [
       ...(isCurrentUser ? [{ text: "Modifier mon pseudo", onPress: () => openEditModal(member) }] : []),
-      ...(member.accountUid
+      ...(isOwner && member.accountUid && !isCurrentUser ? [{ text: "Gérer le droit de créer des scrims", onPress: () => void changeScrimAccess(member) }] : []),
+      ...(isOwner ? (member.accountUid
         ? [{ text: "Dissocier le compte", onPress: () => void unlinkPlayerAccount(member.id).catch((error) => Alert.alert("Équipe", error instanceof Error ? error.message : "Dissociation impossible.")) }]
-        : [{ text: "Associer mon compte", onPress: () => void linkCurrentAccountToPlayer(member.id).catch((error) => Alert.alert("Équipe", error instanceof Error ? error.message : "Association impossible.")) }]),
-      { text: "Retirer de l'équipe", style: "destructive" as const, onPress: () => confirmDelete(member) },
+        : [{ text: "Associer mon compte", onPress: () => void linkCurrentAccountToPlayer(member.id).catch((error) => Alert.alert("Équipe", error instanceof Error ? error.message : "Association impossible.")) }]) : []),
+      ...(isOwner ? [{ text: "Retirer de l'équipe", style: "destructive" as const, onPress: () => confirmDelete(member) }] : []),
       { text: "Fermer", style: "cancel" as const },
     ];
     Alert.alert(member.nickname, member.accountUid ? "Compte lié" : "Aucun compte associé", actions);
@@ -117,9 +144,9 @@ export default function TeamScreen() {
             <View style={styles.headingText}>
               <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
               <Text style={styles.title}>Équipe</Text>
-              <Text style={styles.subtitle}>Gère les pseudos et les statistiques de présence.</Text>
+              <Text style={styles.subtitle}>{isOwner ? "Gère les membres, leurs pseudos et leurs droits." : "Consulte les membres et tes statistiques de présence."}</Text>
             </View>
-            <TouchableOpacity style={styles.addButton} onPress={openAddModal} activeOpacity={0.85}><Ionicons name="person-add" size={22} color="#111" /></TouchableOpacity>
+            {isOwner ? <TouchableOpacity style={styles.addButton} onPress={openAddModal} activeOpacity={0.85}><Ionicons name="person-add" size={22} color="#111" /></TouchableOpacity> : null}
           </View>
 
           <View style={styles.summaryCard}><Text style={styles.summaryValue}>{members.length}</Text><Text style={styles.summaryLabel}>MEMBRES</Text></View>
@@ -139,13 +166,13 @@ export default function TeamScreen() {
                 <Text style={styles.presenceLabel}>PRÉSENCE</Text>
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${attendance.rate}%` }]} /></View>
                 <Text style={styles.presenceText}>{attendance.total ? `${attendance.present}/${attendance.total} réponses positives · ${attendance.rate}%` : "Aucune réponse enregistrée"}</Text>
-                {isCurrentUser ? <Text style={styles.editHint}>Appuie pour modifier ton pseudo</Text> : null}
+                {isCurrentUser ? <Text style={styles.editHint}>Appuie pour modifier ton pseudo</Text> : isOwner && member.accountUid ? <Text style={styles.adminHint}>Appuie pour gérer ses droits</Text> : null}
               </Pressable>
             );
           })}
 
           {!members.length && <Text style={styles.empty}>Aucun joueur dans l'équipe.</Text>}
-          <Text style={styles.hint}>Appuie sur un joueur pour gérer son compte.</Text>
+          <Text style={styles.hint}>Appuie sur un joueur pour afficher les actions disponibles.</Text>
         </ScrollView>
       </ImageBackground>
 
@@ -165,7 +192,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 150 }, headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headingText: { flex: 1 },
   kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 22, lineHeight: 20 }, addButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginLeft: 12 },
   summaryCard: { alignItems: "center", borderRadius: 24, padding: 16, marginBottom: 14, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, summaryValue: { color: "#fff", fontSize: 28, fontWeight: "900" }, summaryLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "800", marginTop: 4 },
-  card: { borderRadius: 24, padding: 17, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, currentCard: { borderColor: "rgba(132,217,86,0.35)" }, memberHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, name: { flex: 1, color: "#fff", fontWeight: "900", fontSize: 18 }, linkBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, minHeight: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)" }, linkBadgeActive: { backgroundColor: "rgba(132,217,86,0.1)" }, linkText: { color: "#A8A8A8", fontSize: 10, fontWeight: "800" }, linkTextActive: { color: "#84D956" }, presenceLabel: { color: Theme.colors.goldLight, marginTop: 13, fontSize: 10, fontWeight: "900", letterSpacing: 1 }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 7, overflow: "hidden" }, progressFill: { height: "100%", borderRadius: 4, backgroundColor: Theme.colors.goldLight }, presenceText: { color: "#C8C8C8", marginTop: 7, fontSize: 11, fontWeight: "700" }, editHint: { color: "#84D956", fontSize: 10, marginTop: 10, fontWeight: "800" },
+  card: { borderRadius: 24, padding: 17, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, currentCard: { borderColor: "rgba(132,217,86,0.35)" }, memberHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, name: { flex: 1, color: "#fff", fontWeight: "900", fontSize: 18 }, linkBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, minHeight: 28, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)" }, linkBadgeActive: { backgroundColor: "rgba(132,217,86,0.1)" }, linkText: { color: "#A8A8A8", fontSize: 10, fontWeight: "800" }, linkTextActive: { color: "#84D956" }, presenceLabel: { color: Theme.colors.goldLight, marginTop: 13, fontSize: 10, fontWeight: "900", letterSpacing: 1 }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 7, overflow: "hidden" }, progressFill: { height: "100%", borderRadius: 4, backgroundColor: Theme.colors.goldLight }, presenceText: { color: "#C8C8C8", marginTop: 7, fontSize: 11, fontWeight: "700" }, editHint: { color: "#84D956", fontSize: 10, marginTop: 10, fontWeight: "800" }, adminHint: { color: Theme.colors.goldLight, fontSize: 10, marginTop: 10, fontWeight: "800" },
   empty: { color: "#C8C8C8", textAlign: "center", paddingVertical: 30 }, hint: { color: "#8E8E8E", fontSize: 10, textAlign: "center", marginTop: 4 },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" }, modalCard: { backgroundColor: "#111", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: 34, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }, modalTitle: { color: "#fff", fontSize: 22, fontWeight: "900" }, input: { height: 50, borderRadius: 16, paddingHorizontal: 15, color: "#fff", backgroundColor: "#1A1A1A", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, saveButton: { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginTop: 16 }, disabled: { opacity: 0.55 }, saveText: { color: "#111", fontWeight: "900", fontSize: 15 },
 });

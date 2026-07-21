@@ -22,7 +22,6 @@ const marbleSource = require("../../assets/images/background-marble.jpg");
 const OWNER_EMAIL = "thibaut.llorens@hotmail.com";
 
 type ModalMode = "add" | "edit";
-
 type MemberRole = "Administrateur" | "Créateur de scrims" | "Joueur";
 
 export default function TeamScreen() {
@@ -62,17 +61,8 @@ export default function TeamScreen() {
     void getPlayersScrimAccess(members).then(setScrimAccess).catch(() => null);
   }, [isOwner, members]);
 
-  function openAddModal() {
-    setModalMode("add");
-    setNickname("");
-    setModalVisible(true);
-  }
-
-  function openEditModal(member: RosterPlayer) {
-    setModalMode("edit");
-    setNickname(member.nickname);
-    setModalVisible(true);
-  }
+  function openAddModal() { setModalMode("add"); setNickname(""); setModalVisible(true); }
+  function openEditModal(member: RosterPlayer) { setModalMode("edit"); setNickname(member.nickname); setModalVisible(true); }
 
   function getRole(member: RosterPlayer): MemberRole {
     if (member.accountEmail?.toLowerCase() === OWNER_EMAIL) return "Administrateur";
@@ -106,10 +96,7 @@ export default function TeamScreen() {
     ]);
   }
 
-  function openPermissions(member: RosterPlayer) {
-    setSelectedMember(member);
-    setPermissionModalVisible(true);
-  }
+  function openPermissions(member: RosterPlayer) { setSelectedMember(member); setPermissionModalVisible(true); }
 
   async function updatePermission(enabled: boolean) {
     if (!selectedMember || savingPermission) return;
@@ -153,6 +140,8 @@ export default function TeamScreen() {
     <SafeAreaView style={styles.container}>
       <ImageBackground source={marbleSource} style={styles.background} imageStyle={styles.backgroundImage}>
         <View style={styles.overlay} />
+        <View style={styles.whiteGlow} />
+        <View style={styles.goldVein} />
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.headingRow}>
             <View style={styles.headingText}>
@@ -171,6 +160,7 @@ export default function TeamScreen() {
             const role = getRole(member);
             return (
               <Pressable key={member.id} style={[styles.card, isCurrentUser && styles.currentCard]} onPress={() => openMemberActions(member)}>
+                <View style={styles.cardVein} />
                 <View style={styles.memberHeader}>
                   <Text style={styles.name}>{member.nickname}</Text>
                   <View style={[styles.roleBadge, role === "Administrateur" ? styles.adminRole : role === "Créateur de scrims" ? styles.creatorRole : styles.playerRole]}>
@@ -225,14 +215,15 @@ export default function TeamScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.28 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" },
+  container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: Theme.marble.imageOpacity }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: Theme.marble.overlay },
+  whiteGlow: { position: "absolute", top: -80, right: -120, width: 330, height: 430, borderRadius: 190, backgroundColor: Theme.marble.whiteGlow, transform: [{ rotate: "-18deg" }] }, goldVein: { position: "absolute", top: 120, left: -70, width: 520, height: 2, backgroundColor: Theme.marble.goldVein, transform: [{ rotate: "-23deg" }] },
   content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 150 }, headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, headingText: { flex: 1 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 7, marginBottom: 22, lineHeight: 20 }, addButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginLeft: 12 },
-  summaryCard: { alignItems: "center", borderRadius: 24, padding: 16, marginBottom: 14, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, summaryValue: { color: "#fff", fontSize: 28, fontWeight: "900" }, summaryLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "800", marginTop: 4 },
-  card: { borderRadius: 24, padding: 17, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, currentCard: { borderColor: "rgba(132,217,86,0.35)" }, memberHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, name: { flex: 1, color: "#fff", fontWeight: "900", fontSize: 18 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#E0E0E0", marginTop: 7, marginBottom: 22, lineHeight: 20 }, addButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginLeft: 12, shadowColor: Theme.colors.gold, shadowOpacity: 0.34, shadowRadius: 12, elevation: 8 },
+  summaryCard: { alignItems: "center", borderRadius: 24, padding: 16, marginBottom: 14, backgroundColor: Theme.glass.cardStrong, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.borderGold }, summaryValue: { color: "#fff", fontSize: 28, fontWeight: "900" }, summaryLabel: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "800", marginTop: 4 },
+  card: { borderRadius: 24, padding: 17, marginBottom: 12, overflow: "hidden", backgroundColor: Theme.glass.card, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border }, currentCard: { borderColor: "rgba(132,217,86,0.46)" }, cardVein: { position: "absolute", top: 0, right: 22, width: 90, height: 1, backgroundColor: Theme.marble.goldVein }, memberHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }, name: { flex: 1, color: "#fff", fontWeight: "900", fontSize: 18 },
   roleBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, minHeight: 28, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth }, adminRole: { backgroundColor: "rgba(224,184,67,0.12)", borderColor: "rgba(255,216,106,0.35)" }, creatorRole: { backgroundColor: "rgba(80,160,220,0.12)", borderColor: "rgba(124,203,255,0.35)" }, playerRole: { backgroundColor: "rgba(255,255,255,0.05)", borderColor: "rgba(255,255,255,0.12)" }, roleText: { fontSize: 9, fontWeight: "900" }, adminRoleText: { color: "#FFD86A" }, creatorRoleText: { color: "#7CCBFF" }, playerRoleText: { color: "#BDBDBD" },
-  accountRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8 }, linkText: { color: "#A8A8A8", fontSize: 10, fontWeight: "800" }, linkTextActive: { color: "#84D956" }, presenceLabel: { color: Theme.colors.goldLight, marginTop: 13, fontSize: 10, fontWeight: "900", letterSpacing: 1 }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 7, overflow: "hidden" }, progressFill: { height: "100%", borderRadius: 4, backgroundColor: Theme.colors.goldLight }, presenceText: { color: "#C8C8C8", marginTop: 7, fontSize: 11, fontWeight: "700" }, editHint: { color: "#84D956", fontSize: 10, marginTop: 10, fontWeight: "800" }, adminHint: { color: Theme.colors.goldLight, fontSize: 10, marginTop: 10, fontWeight: "800" },
-  empty: { color: "#C8C8C8", textAlign: "center", paddingVertical: 30 }, hint: { color: "#8E8E8E", fontSize: 10, textAlign: "center", marginTop: 4 },
-  modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" }, modalCard: { backgroundColor: "#111", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: 34, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }, modalTitle: { color: "#fff", fontSize: 22, fontWeight: "900" }, input: { height: 50, borderRadius: 16, paddingHorizontal: 15, color: "#fff", backgroundColor: "#1A1A1A", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, saveButton: { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginTop: 16 }, disabled: { opacity: 0.55 }, saveText: { color: "#111", fontWeight: "900", fontSize: 15 },
-  permissionName: { color: Theme.colors.goldLight, fontWeight: "800", marginTop: 3 }, permissionIntro: { color: "#BDBDBD", lineHeight: 19, marginBottom: 15 }, permissionChoice: { minHeight: 86, borderRadius: 18, padding: 14, marginTop: 10, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }, permissionChoiceActive: { borderColor: "rgba(132,217,86,0.45)", backgroundColor: "rgba(132,217,86,0.06)" }, permissionIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)" }, creatorIcon: { backgroundColor: "rgba(80,160,220,0.1)" }, permissionText: { flex: 1 }, permissionTitle: { color: "#fff", fontWeight: "900", fontSize: 15 }, permissionDescription: { color: "#AFAFAF", fontSize: 11, lineHeight: 16, marginTop: 3 }, savingPermission: { color: Theme.colors.goldLight, textAlign: "center", marginTop: 16, fontWeight: "800" },
+  accountRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8 }, linkText: { color: "#B8B8B8", fontSize: 10, fontWeight: "800" }, linkTextActive: { color: "#84D956" }, presenceLabel: { color: Theme.colors.goldLight, marginTop: 13, fontSize: 10, fontWeight: "900", letterSpacing: 1 }, progressTrack: { height: 7, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.12)", marginTop: 7, overflow: "hidden" }, progressFill: { height: "100%", borderRadius: 4, backgroundColor: Theme.colors.goldLight }, presenceText: { color: "#D8D8D8", marginTop: 7, fontSize: 11, fontWeight: "700" }, editHint: { color: "#84D956", fontSize: 10, marginTop: 10, fontWeight: "800" }, adminHint: { color: Theme.colors.goldLight, fontSize: 10, marginTop: 10, fontWeight: "800" },
+  empty: { color: "#D5D5D5", textAlign: "center", paddingVertical: 30 }, hint: { color: "#A8A8A8", fontSize: 10, textAlign: "center", marginTop: 4 },
+  modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.72)" }, modalCard: { backgroundColor: "rgba(15,15,15,0.97)", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, paddingBottom: 34, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.borderGold }, modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }, modalTitle: { color: "#fff", fontSize: 22, fontWeight: "900" }, input: { height: 50, borderRadius: 16, paddingHorizontal: 15, color: "#fff", backgroundColor: "rgba(255,255,255,0.07)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border }, saveButton: { height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginTop: 16 }, disabled: { opacity: 0.55 }, saveText: { color: "#111", fontWeight: "900", fontSize: 15 },
+  permissionName: { color: Theme.colors.goldLight, fontWeight: "800", marginTop: 3 }, permissionIntro: { color: "#D0D0D0", lineHeight: 19, marginBottom: 15 }, permissionChoice: { minHeight: 86, borderRadius: 18, padding: 14, marginTop: 10, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: 1, borderColor: Theme.glass.border }, permissionChoiceActive: { borderColor: "rgba(132,217,86,0.45)", backgroundColor: "rgba(132,217,86,0.06)" }, permissionIcon: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.07)" }, creatorIcon: { backgroundColor: "rgba(80,160,220,0.1)" }, permissionText: { flex: 1 }, permissionTitle: { color: "#fff", fontWeight: "900", fontSize: 15 }, permissionDescription: { color: "#C4C4C4", fontSize: 11, lineHeight: 16, marginTop: 3 }, savingPermission: { color: Theme.colors.goldLight, textAlign: "center", marginTop: 16, fontWeight: "800" },
 });

@@ -3,6 +3,7 @@ import * as Updates from "expo-updates";
 import { Tabs } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Platform, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Theme } from "../../constants/theme";
 import { canCreateScrim } from "../../services/accessControl";
@@ -22,6 +23,7 @@ function CenterAction({ focused }: { focused: boolean }) {
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
   const [allowedToCreate, setAllowedToCreate] = useState(false);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -56,33 +58,36 @@ export default function TabsLayout() {
     return matches.filter((match) => match.status !== "Annulé" && !match.responses.some((response) => response.uid === session.localId && response.status !== "En attente")).length;
   }, [matches, session]);
 
+  const bottomOffset = Math.max(insets.bottom, 10);
+  const tabBarHeight = 66 + bottomOffset;
+
   return (
     <Tabs
       initialRouteName="home"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Theme.colors.goldLight,
-        tabBarInactiveTintColor: "#929292",
+        tabBarInactiveTintColor: "#A5A5A5",
         tabBarHideOnKeyboard: true,
         tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 1 },
         tabBarStyle: {
           position: "absolute",
           left: 14,
           right: 14,
-          bottom: 10,
-          height: 68,
-          paddingTop: 7,
-          paddingBottom: 7,
-          borderRadius: 24,
-          backgroundColor: "rgba(7,7,7,0.985)",
+          bottom: Math.max(insets.bottom / 2, 8),
+          height: tabBarHeight,
+          paddingTop: 8,
+          paddingBottom: bottomOffset,
+          borderRadius: 26,
+          backgroundColor: "rgba(7,7,7,0.94)",
           borderTopWidth: 0,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: "rgba(255,255,255,0.1)",
+          borderColor: Theme.colors.borderGold,
           shadowColor: "#000000",
-          shadowOpacity: 0.18,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 4 },
-          elevation: 12,
+          shadowOpacity: 0.32,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 7 },
+          elevation: 18,
         },
         tabBarItemStyle: { borderRadius: 20 },
       }}
@@ -99,7 +104,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  centerGlow: { width: 52, height: 52, borderRadius: 26, marginTop: -15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.08)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.32)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.22, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 12 },
-  centerGlowActive: { transform: [{ scale: 1.03 }], backgroundColor: "rgba(217,175,49,0.14)" },
-  centerButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.99)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.42)" },
+  centerGlow: { width: 54, height: 54, borderRadius: 27, marginTop: -16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.38)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.28, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 14 },
+  centerGlowActive: { transform: [{ scale: 1.05 }], backgroundColor: "rgba(217,175,49,0.17)", borderColor: "rgba(255,226,128,0.7)" },
+  centerButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.96)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.5)" },
 });

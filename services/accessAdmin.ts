@@ -17,12 +17,18 @@ export async function getPlayerScrimAccess(player: RosterPlayer) {
   if (!player.accountUid) return false;
   const session = await requireOwner();
   const response = await fetch(`${ACCESS_BASE}/${encodeURIComponent(player.accountUid)}`, {
-    headers: { Authorization: `Bearer ${session.idToken}` },
+    headers: { Authorization: `Bearer ${session.idToken}`, "Cache-Control": "no-cache" },
   });
   if (response.status === 404) return false;
   if (!response.ok) throw new Error("Lecture des droits impossible.");
   const document = await response.json() as { fields?: { canCreateScrim?: { booleanValue?: boolean } } };
   return document.fields?.canCreateScrim?.booleanValue === true;
+}
+
+export async function getPlayersScrimAccess(players: RosterPlayer[]) {
+  const linked = players.filter((player) => Boolean(player.accountUid));
+  const entries = await Promise.all(linked.map(async (player) => [player.accountUid!, await getPlayerScrimAccess(player).catch(() => false)] as const));
+  return Object.fromEntries(entries) as Record<string, boolean>;
 }
 
 export async function setPlayerScrimAccess(player: RosterPlayer, enabled: boolean) {

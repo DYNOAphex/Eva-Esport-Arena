@@ -22,6 +22,18 @@ export const Theme = {
     marbleMuted: 0.56,
     card: 0.72,
   },
+  marble: {
+    imageOpacity: 0.72,
+    overlay: "rgba(0, 0, 0, 0.48)",
+    whiteGlow: "rgba(255, 255, 255, 0.08)",
+    goldVein: "rgba(246, 215, 106, 0.30)",
+  },
+  glass: {
+    card: "rgba(8, 8, 8, 0.72)",
+    cardStrong: "rgba(5, 5, 5, 0.86)",
+    border: "rgba(255, 255, 255, 0.13)",
+    borderGold: "rgba(246, 215, 106, 0.28)",
+  },
   spacing: {
     xs: 4,
     sm: 8,

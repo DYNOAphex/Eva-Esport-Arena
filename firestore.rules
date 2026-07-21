@@ -15,6 +15,13 @@ service cloud.firestore {
         ];
     }
 
+    function canCreateScrim() {
+      return isAdmin()
+        || (signedIn()
+          && exists(/databases/$(database)/documents/appAccess/$(request.auth.uid))
+          && get(/databases/$(database)/documents/appAccess/$(request.auth.uid)).data.canCreateScrim == true);
+    }
+
     function availabilityOnlyUpdate() {
       return signedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responses']);
@@ -85,7 +92,8 @@ service cloud.firestore {
 
     match /matches/{matchId} {
       allow read: if signedIn();
-      allow create, delete: if isAdmin();
+      allow create: if canCreateScrim();
+      allow delete: if isAdmin();
       allow update: if isAdmin() || availabilityOnlyUpdate();
     }
 

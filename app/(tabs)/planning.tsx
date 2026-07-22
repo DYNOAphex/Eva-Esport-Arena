@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ImageBackground, Modal, Platform, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import AgendaMatchCard from "../../components/dyno/AgendaMatchCard";
 import AgendaSummary from "../../components/dyno/AgendaSummary";
 import { Theme } from "../../constants/theme";
 import { getScrimPermissions } from "../../services/accessControl";
@@ -211,40 +212,66 @@ export default function PlanningScreen() {
             const timestamp = matchTimestamp(match);
             const isPast = timestamp < Date.now();
             const needsResponse = !isPast && match.status !== "Annulé" && response === "En attente";
-            const progress = Math.min(1, summary.available / Math.max(confirmationThreshold, 1));
-            const countdown = countdownLabel(timestamp, match.status);
+            const displayStatus = isPast && match.status !== "Annulé" ? "Terminé" : match.status;
 
             return (
-              <View key={match.id} style={[styles.card, needsResponse && styles.cardNeedsResponse]}>
-                {needsResponse ? <View style={styles.priorityBanner}><Ionicons name="alert-circle" size={15} color="#080808" /><Text style={styles.priorityText}>RÉPONSE REQUISE</Text></View> : null}
-                <View style={styles.cardHeader}>
-                  <View style={styles.dateCompact}><Text style={styles.day}>{getDay(match.date)}</Text><Text style={styles.month}>{getMonth(match.date)}</Text></View>
-                  <View style={styles.headerMain}>
-                    <View style={styles.headerMeta}><Text style={styles.type}>{match.type.toUpperCase()}</Text><StatusBadge status={isPast && match.status !== "Annulé" ? "Terminé" : match.status} /></View>
-                    <Text style={styles.countdown}>{countdown}</Text>
+              <AgendaMatchCard
+                key={match.id}
+                day={getDay(match.date)}
+                month={getMonth(match.date)}
+                type={match.type}
+                status={displayStatus}
+                countdown={countdownLabel(timestamp, match.status)}
+                opponent={match.opponent}
+                arrivalTime={match.arrivalTime}
+                matchTime={match.matchTime}
+                arena={match.arena}
+                available={summary.available}
+                unavailable={summary.unavailable}
+                pending={summary.pendingPlayers.length}
+                confirmationThreshold={confirmationThreshold}
+                needsResponse={needsResponse}
+                onOpenResponses={() => setDetails(match)}
+              >
+                {summary.pendingPlayers.length ? (
+                  <View style={styles.pendingBox}>
+                    <Text style={styles.pendingLabel}>EN ATTENTE DE</Text>
+                    <Text style={styles.pendingNames} numberOfLines={2}>{summary.pendingPlayers.map((player) => player.nickname).join(", ")}</Text>
                   </View>
-                </View>
-                <View style={styles.versusBlock}><Text style={styles.dynoName}>DYNO</Text><Text style={styles.vs}>VS</Text><Text style={styles.opponentName} numberOfLines={2}>{match.opponent.toUpperCase()}</Text></View>
-                <View style={styles.detailsGrid}>
-                  <Detail icon="people-outline" label="Rendez-vous" text={match.arrivalTime} />
-                  <Detail icon="time-outline" label="Match" text={match.matchTime} />
-                  <Detail icon="business-outline" label="Arène" text={match.arena} />
-                </View>
-                <TouchableOpacity style={styles.progressCard} onPress={() => setDetails(match)} activeOpacity={0.8}>
-                  <View style={styles.progressHeader}><Text style={styles.progressTitle}>{summary.available} / {confirmationThreshold} joueurs requis</Text><Ionicons name="chevron-forward" size={16} color="#9C9C9C" /></View>
-                  <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} /></View>
-                  <View style={styles.summaryRow}><Text style={styles.summaryAvailable}>● {summary.available} disponibles</Text><Text style={styles.summaryUnavailable}>● {summary.unavailable} indisponibles</Text><Text style={styles.summaryPending}>● {summary.pendingPlayers.length} sans réponse</Text></View>
-                </TouchableOpacity>
-                {summary.pendingPlayers.length ? <View style={styles.pendingBox}><Text style={styles.pendingLabel}>EN ATTENTE DE</Text><Text style={styles.pendingNames} numberOfLines={2}>{summary.pendingPlayers.map((player) => player.nickname).join(", ")}</Text></View> : null}
+                ) : null}
                 {match.notes ? <Text style={styles.notes}>{match.notes}</Text> : null}
-                {!isPast && match.status !== "Annulé" ? <><Text style={styles.answerLabel}>{needsResponse ? "CHOISIS TA DISPONIBILITÉ" : "TA DISPONIBILITÉ"}</Text><View style={styles.answerRow}><AnswerButton active={response === "Disponible"} positive label="Disponible" disabled={isSaving} onPress={() => void answer(match.id, "Disponible")} /><AnswerButton active={response === "Indisponible"} label="Indisponible" disabled={isSaving} onPress={() => void answer(match.id, "Indisponible")} /></View></> : null}
+                {!isPast && match.status !== "Annulé" ? (
+                  <>
+                    <Text style={styles.answerLabel}>{needsResponse ? "CHOISIS TA DISPONIBILITÉ" : "TA DISPONIBILITÉ"}</Text>
+                    <View style={styles.answerRow}>
+                      <AnswerButton active={response === "Disponible"} positive label="Disponible" disabled={isSaving} onPress={() => void answer(match.id, "Disponible")} />
+                      <AnswerButton active={response === "Indisponible"} label="Indisponible" disabled={isSaving} onPress={() => void answer(match.id, "Indisponible")} />
+                    </View>
+                  </>
+                ) : null}
                 <View style={styles.actionRow}>
-                  {!isPast && match.status !== "Annulé" ? <TouchableOpacity style={styles.calendarButton} onPress={() => void addToCalendar(match)}><Ionicons name="calendar-outline" size={17} color="#080808" /><Text style={styles.calendarButtonText}>CALENDRIER</Text></TouchableOpacity> : null}
-                  <TouchableOpacity style={styles.shareButton} onPress={() => void shareMatch(match)}><Ionicons name="share-social-outline" size={18} color={Theme.colors.goldLight} /><Text style={styles.shareText}>PARTAGER</Text></TouchableOpacity>
-                  {canManage ? <TouchableOpacity accessibilityLabel="Actions administrateur" style={styles.moreButton} onPress={() => manage(match)}><Ionicons name="ellipsis-horizontal" size={22} color={Theme.colors.goldLight} /></TouchableOpacity> : null}
-                  {canManage ? <TouchableOpacity accessibilityLabel="Supprimer le scrim" disabled={isSaving} style={[styles.deleteButton, isSaving && styles.disabled]} onPress={() => confirmDelete(match)}><Ionicons name="trash-outline" size={20} color="#FF7777" /></TouchableOpacity> : null}
+                  {!isPast && match.status !== "Annulé" ? (
+                    <TouchableOpacity style={styles.calendarButton} onPress={() => void addToCalendar(match)}>
+                      <Ionicons name="calendar-outline" size={17} color="#080808" />
+                      <Text style={styles.calendarButtonText}>CALENDRIER</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity style={styles.shareButton} onPress={() => void shareMatch(match)}>
+                    <Ionicons name="share-social-outline" size={18} color={Theme.colors.goldLight} />
+                    <Text style={styles.shareText}>PARTAGER</Text>
+                  </TouchableOpacity>
+                  {canManage ? (
+                    <TouchableOpacity accessibilityLabel="Actions administrateur" style={styles.moreButton} onPress={() => manage(match)}>
+                      <Ionicons name="ellipsis-horizontal" size={22} color={Theme.colors.goldLight} />
+                    </TouchableOpacity>
+                  ) : null}
+                  {canManage ? (
+                    <TouchableOpacity accessibilityLabel="Supprimer le scrim" disabled={isSaving} style={[styles.deleteButton, isSaving && styles.disabled]} onPress={() => confirmDelete(match)}>
+                      <Ionicons name="trash-outline" size={20} color="#FF7777" />
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
-              </View>
+              </AgendaMatchCard>
             );
           })}
         </ScrollView>
@@ -253,8 +280,20 @@ export default function PlanningScreen() {
       <Modal visible={Boolean(details)} transparent animationType="fade" onRequestClose={() => setDetails(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <View style={styles.modalHeader}><Text style={styles.modalTitle}>Réponses de l'équipe</Text><TouchableOpacity onPress={() => setDetails(null)}><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity></View>
-            <ScrollView>{detailRows.length ? detailRows.map(({ player, response: playerResponse }) => <View key={player.id} style={styles.responseRow}><Text style={styles.responsePlayer}>{player.nickname}</Text><Text style={[styles.responseStatus, playerResponse?.status === "Disponible" ? styles.responseOk : playerResponse?.status === "Indisponible" ? styles.responseNo : styles.responsePending]}>{playerResponse?.status ?? "Sans réponse"}</Text></View>) : <Text style={styles.noResponse}>Aucun membre dans l'équipe.</Text>}</ScrollView>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Réponses de l'équipe</Text>
+              <TouchableOpacity onPress={() => setDetails(null)}><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity>
+            </View>
+            <ScrollView>
+              {detailRows.length ? detailRows.map(({ player, response: playerResponse }) => (
+                <View key={player.id} style={styles.responseRow}>
+                  <Text style={styles.responsePlayer}>{player.nickname}</Text>
+                  <Text style={[styles.responseStatus, playerResponse?.status === "Disponible" ? styles.responseOk : playerResponse?.status === "Indisponible" ? styles.responseNo : styles.responsePending]}>
+                    {playerResponse?.status ?? "Sans réponse"}
+                  </Text>
+                </View>
+              )) : <Text style={styles.noResponse}>Aucun membre dans l'équipe.</Text>}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -262,12 +301,14 @@ export default function PlanningScreen() {
   );
 }
 
-function StatusBadge({ status }: { status: Match["status"] | "Terminé" }) {
-  return <View style={[styles.statusBadge, status === "Confirmé" && styles.statusConfirmed, status === "Annulé" && styles.statusCancelled, status === "Terminé" && styles.statusFinished]}><Text style={[styles.statusText, status === "Confirmé" && styles.statusTextDark]}>{status}</Text></View>;
+function FilterButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return <TouchableOpacity style={[styles.filterButton, active && styles.filterActive]} onPress={onPress}><Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text></TouchableOpacity>;
 }
-function FilterButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) { return <TouchableOpacity style={[styles.filterButton, active && styles.filterActive]} onPress={onPress}><Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text></TouchableOpacity>; }
-function AnswerButton({ active, positive, label, disabled, onPress }: { active: boolean; positive?: boolean; label: string; disabled: boolean; onPress: () => void }) { return <TouchableOpacity disabled={disabled} style={[styles.answerButton, active && (positive ? styles.answerPositive : styles.answerNegative), disabled && styles.disabled]} onPress={onPress}><Ionicons name={positive ? "checkmark-circle" : "close-circle"} size={20} color={active ? "#080808" : positive ? "#83DD57" : "#FF7777"} /><Text style={[styles.answerText, active && styles.answerTextActive]}>{label}</Text></TouchableOpacity>; }
-function Detail({ icon, label, text }: { icon: keyof typeof Ionicons.glyphMap; label: string; text: string }) { return <View style={styles.detail}><Ionicons name={icon} size={18} color={Theme.colors.goldLight} /><View><Text style={styles.detailLabel}>{label}</Text><Text style={styles.detailText}>{text}</Text></View></View>; }
+
+function AnswerButton({ active, positive, label, disabled, onPress }: { active: boolean; positive?: boolean; label: string; disabled: boolean; onPress: () => void }) {
+  return <TouchableOpacity disabled={disabled} style={[styles.answerButton, active && (positive ? styles.answerPositive : styles.answerNegative), disabled && styles.disabled]} onPress={onPress}><Ionicons name={positive ? "checkmark-circle" : "close-circle"} size={20} color={active ? "#080808" : positive ? "#83DD57" : "#FF7777"} /><Text style={[styles.answerText, active && styles.answerTextActive]}>{label}</Text></TouchableOpacity>;
+}
+
 function matchTimestamp(match: Pick<Match, "date" | "matchTime">) { return new Date(`${match.date}T${match.matchTime}:00`).getTime(); }
 function countdownLabel(timestamp: number, status: Match["status"]) { if (status === "Annulé") return "Match annulé"; if (!Number.isFinite(timestamp)) return "Date à confirmer"; const diff = timestamp - Date.now(); if (diff < 0) return "Match terminé"; const hours = Math.ceil(diff / 3600000); if (hours <= 3) return `Dans ${hours} h`; if (hours <= 24) return "Aujourd'hui"; if (hours <= 48) return "Demain"; return `Dans ${Math.ceil(hours / 24)} jours`; }
 function getDay(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? "--" : date.getDate().toString().padStart(2, "0"); }
@@ -275,18 +316,50 @@ function getMonth(value: string) { const date = new Date(`${value}T12:00:00`); r
 function formatDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }); }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.42 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" }, content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 170 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 16 },
-  filters: { flexDirection: "row", gap: 10, marginBottom: 20 }, filterButton: { flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, filterActive: { backgroundColor: Theme.colors.goldLight }, filterText: { color: "#D8D8D8", fontWeight: "900", fontSize: 12 }, filterTextActive: { color: "#080808" },
-  emptyCard: { padding: 34, borderRadius: 24, alignItems: "center", backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 12 }, emptyText: { color: "#C8C8C8", textAlign: "center", marginTop: 8 },
-  card: { borderRadius: 26, padding: 17, marginBottom: 18, overflow: "hidden", backgroundColor: "rgba(8,8,8,0.94)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.13)" }, cardNeedsResponse: { borderColor: "rgba(245,205,81,0.72)", backgroundColor: "rgba(19,16,7,0.96)" }, priorityBanner: { marginHorizontal: -17, marginTop: -17, marginBottom: 15, minHeight: 35, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight }, priorityText: { color: "#080808", fontSize: 11, fontWeight: "900", letterSpacing: 1.1 },
-  cardHeader: { flexDirection: "row", alignItems: "center" }, dateCompact: { width: 64, height: 72, borderRadius: 18, backgroundColor: "#F4F0E7", alignItems: "center", justifyContent: "center", marginRight: 13 }, day: { color: "#111", fontSize: 27, fontWeight: "900" }, month: { color: "#78621D", fontSize: 11, fontWeight: "900" }, headerMain: { flex: 1 }, headerMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }, type: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 0.8 }, countdown: { color: "#fff", fontSize: 19, fontWeight: "900", marginTop: 10 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(224,184,67,0.18)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(224,184,67,0.5)" }, statusConfirmed: { backgroundColor: "#83DD57", borderColor: "#83DD57" }, statusCancelled: { backgroundColor: "rgba(255,90,90,0.17)", borderColor: "rgba(255,100,100,0.55)" }, statusFinished: { backgroundColor: "rgba(150,150,150,0.16)", borderColor: "rgba(190,190,190,0.35)" }, statusText: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900" }, statusTextDark: { color: "#080808" },
-  versusBlock: { flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", gap: 9, marginTop: 19 }, dynoName: { color: "#fff", fontSize: 22, fontWeight: "900" }, vs: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900" }, opponentName: { flex: 1, color: "#fff", fontSize: 28, lineHeight: 31, fontWeight: "900" },
-  detailsGrid: { flexDirection: "row", gap: 8, marginTop: 16 }, detail: { flex: 1, minHeight: 62, borderRadius: 16, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" }, detailLabel: { color: "#8F8F8F", fontSize: 8, fontWeight: "800", textTransform: "uppercase" }, detailText: { color: "#F0F0F0", fontSize: 11, fontWeight: "900", marginTop: 2 },
-  progressCard: { marginTop: 16, padding: 14, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.11)" }, progressHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }, progressTitle: { color: "#fff", fontSize: 12, fontWeight: "900" }, progressTrack: { height: 8, borderRadius: 999, overflow: "hidden", marginTop: 11, backgroundColor: "rgba(255,255,255,0.09)" }, progressFill: { height: "100%", borderRadius: 999, backgroundColor: "#83DD57" }, summaryRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 11 }, summaryAvailable: { color: "#81DD55", fontSize: 9, fontWeight: "900" }, summaryUnavailable: { color: "#FF7777", fontSize: 9, fontWeight: "900" }, summaryPending: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900" },
-  pendingBox: { marginTop: 11, padding: 12, borderRadius: 15, backgroundColor: "rgba(224,184,67,0.065)" }, pendingLabel: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 }, pendingNames: { color: "#D8D8D8", fontSize: 11, marginTop: 5, lineHeight: 16 }, notes: { color: "#D0D0D0", fontSize: 11, lineHeight: 16, marginTop: 11 },
-  answerLabel: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 0.7, marginTop: 18, marginBottom: 9 }, answerRow: { flexDirection: "row", gap: 10 }, answerButton: { flex: 1, minHeight: 52, borderRadius: 17, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "rgba(255,255,255,0.055)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, answerPositive: { backgroundColor: "#83DD57" }, answerNegative: { backgroundColor: "#FF7777" }, answerText: { color: "#fff", fontWeight: "900", fontSize: 12 }, answerTextActive: { color: "#080808" }, disabled: { opacity: 0.55 },
-  actionRow: { flexDirection: "row", gap: 8, marginTop: 16 }, calendarButton: { flex: 1.35, minHeight: 48, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: Theme.colors.goldLight }, calendarButtonText: { color: "#080808", fontSize: 10, fontWeight: "900" }, shareButton: { flex: 1.1, minHeight: 48, borderRadius: 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" }, shareText: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900" }, moreButton: { width: 46, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" }, deleteButton: { width: 46, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(130,20,20,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.35)" },
-  modalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.82)" }, modalCard: { maxHeight: "70%", borderRadius: 24, padding: 18, backgroundColor: "#101010", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.15)" }, modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }, modalTitle: { color: "#fff", fontSize: 18, fontWeight: "900" }, responseRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.1)" }, responsePlayer: { color: "#fff", fontWeight: "800" }, responseStatus: { fontWeight: "900" }, responseOk: { color: "#83DD57" }, responseNo: { color: "#FF7777" }, responsePending: { color: Theme.colors.goldLight }, noResponse: { color: "#C8C8C8", textAlign: "center", paddingVertical: 20 },
+  container: { flex: 1, backgroundColor: "#050505" },
+  background: { flex: 1 },
+  backgroundImage: { opacity: 0.42 },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" },
+  content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 170 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
+  title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 },
+  subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 16 },
+  filters: { flexDirection: "row", gap: 10, marginBottom: 20 },
+  filterButton: { flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
+  filterActive: { backgroundColor: Theme.colors.goldLight },
+  filterText: { color: "#D8D8D8", fontWeight: "900", fontSize: 12 },
+  filterTextActive: { color: "#080808" },
+  emptyCard: { padding: 34, borderRadius: 24, alignItems: "center", backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
+  emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 12 },
+  emptyText: { color: "#C8C8C8", textAlign: "center", marginTop: 8 },
+  pendingBox: { marginTop: 11, padding: 11, borderRadius: 14, backgroundColor: "rgba(224,184,67,0.065)" },
+  pendingLabel: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  pendingNames: { color: "#D8D8D8", fontSize: 11, marginTop: 5, lineHeight: 16 },
+  notes: { color: "#D0D0D0", fontSize: 11, lineHeight: 16, marginTop: 10 },
+  answerLabel: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 0.7, marginTop: 16, marginBottom: 8 },
+  answerRow: { flexDirection: "row", gap: 9 },
+  answerButton: { flex: 1, minHeight: 48, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: "rgba(255,255,255,0.055)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
+  answerPositive: { backgroundColor: "#83DD57" },
+  answerNegative: { backgroundColor: "#FF7777" },
+  answerText: { color: "#fff", fontWeight: "900", fontSize: 12 },
+  answerTextActive: { color: "#080808" },
+  disabled: { opacity: 0.55 },
+  actionRow: { flexDirection: "row", gap: 8, marginTop: 14 },
+  calendarButton: { flex: 1.35, minHeight: 46, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, backgroundColor: Theme.colors.goldLight },
+  calendarButtonText: { color: "#080808", fontSize: 10, fontWeight: "900" },
+  shareButton: { flex: 1.1, minHeight: 46, borderRadius: 15, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" },
+  shareText: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900" },
+  moreButton: { width: 44, minHeight: 46, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" },
+  deleteButton: { width: 44, minHeight: 46, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(130,20,20,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.35)" },
+  modalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.82)" },
+  modalCard: { maxHeight: "70%", borderRadius: 24, padding: 18, backgroundColor: "#101010", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.15)" },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  modalTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
+  responseRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.1)" },
+  responsePlayer: { color: "#fff", fontWeight: "800" },
+  responseStatus: { fontWeight: "900" },
+  responseOk: { color: "#83DD57" },
+  responseNo: { color: "#FF7777" },
+  responsePending: { color: Theme.colors.goldLight },
+  noResponse: { color: "#C8C8C8", textAlign: "center", paddingVertical: 20 },
 });

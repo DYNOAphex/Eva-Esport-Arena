@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, ImageBackground, Modal, Platform, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import AgendaSummary from "../../components/dyno/AgendaSummary";
 import { Theme } from "../../constants/theme";
 import { getScrimPermissions } from "../../services/accessControl";
 import { getAppSettings } from "../../services/appSettings";
@@ -39,6 +40,14 @@ export default function PlanningScreen() {
     return () => { unsubscribeMatches(); unsubscribeRoster(); };
   }, [loadMatches]);
 
+  const upcomingMatches = useMemo(() => {
+    const now = Date.now();
+    return matches.filter((match) => {
+      const timestamp = matchTimestamp(match);
+      return match.status !== "Annulé" && (!Number.isFinite(timestamp) || timestamp >= now);
+    });
+  }, [matches]);
+
   const filteredMatches = useMemo(() => {
     const now = Date.now();
     return matches.filter((match) => {
@@ -48,6 +57,19 @@ export default function PlanningScreen() {
       return match.status !== "Annulé" && (!Number.isFinite(timestamp) || timestamp >= now);
     });
   }, [matches, filter]);
+
+  const awaitingResponse = useMemo(() => {
+    if (!session) return 0;
+    return upcomingMatches.filter((match) => {
+      const response = match.responses.find((item) => item.uid === session.localId)?.status ?? "En attente";
+      return response === "En attente";
+    }).length;
+  }, [session, upcomingMatches]);
+
+  const confirmedCount = useMemo(
+    () => upcomingMatches.filter((match) => match.status === "Confirmé").length,
+    [upcomingMatches],
+  );
 
   function responseForPlayer(match: Match, player: RosterPlayer) {
     return match.responses.find((response) => response.uid === player.accountUid || response.player.trim().toLowerCase() === player.nickname.trim().toLowerCase());
@@ -167,6 +189,9 @@ export default function PlanningScreen() {
           <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
           <Text style={styles.title}>Agenda</Text>
           <Text style={styles.subtitle}>Disponibilités, historique et joueurs sans réponse.</Text>
+
+          <AgendaSummary upcoming={upcomingMatches.length} awaitingResponse={awaitingResponse} confirmed={confirmedCount} />
+
           <View style={styles.filters}>
             <FilterButton label="À venir" active={filter === "upcoming"} onPress={() => setFilter("upcoming")} />
             <FilterButton label="Historique" active={filter === "history"} onPress={() => setFilter("history")} />
@@ -192,7 +217,6 @@ export default function PlanningScreen() {
             return (
               <View key={match.id} style={[styles.card, needsResponse && styles.cardNeedsResponse]}>
                 {needsResponse ? <View style={styles.priorityBanner}><Ionicons name="alert-circle" size={15} color="#080808" /><Text style={styles.priorityText}>RÉPONSE REQUISE</Text></View> : null}
-
                 <View style={styles.cardHeader}>
                   <View style={styles.dateCompact}><Text style={styles.day}>{getDay(match.date)}</Text><Text style={styles.month}>{getMonth(match.date)}</Text></View>
                   <View style={styles.headerMain}>
@@ -200,30 +224,20 @@ export default function PlanningScreen() {
                     <Text style={styles.countdown}>{countdown}</Text>
                   </View>
                 </View>
-
-                <View style={styles.versusBlock}>
-                  <Text style={styles.dynoName}>DYNO</Text>
-                  <Text style={styles.vs}>VS</Text>
-                  <Text style={styles.opponentName} numberOfLines={2}>{match.opponent.toUpperCase()}</Text>
-                </View>
-
+                <View style={styles.versusBlock}><Text style={styles.dynoName}>DYNO</Text><Text style={styles.vs}>VS</Text><Text style={styles.opponentName} numberOfLines={2}>{match.opponent.toUpperCase()}</Text></View>
                 <View style={styles.detailsGrid}>
                   <Detail icon="people-outline" label="Rendez-vous" text={match.arrivalTime} />
                   <Detail icon="time-outline" label="Match" text={match.matchTime} />
                   <Detail icon="business-outline" label="Arène" text={match.arena} />
                 </View>
-
                 <TouchableOpacity style={styles.progressCard} onPress={() => setDetails(match)} activeOpacity={0.8}>
                   <View style={styles.progressHeader}><Text style={styles.progressTitle}>{summary.available} / {confirmationThreshold} joueurs requis</Text><Ionicons name="chevron-forward" size={16} color="#9C9C9C" /></View>
                   <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} /></View>
                   <View style={styles.summaryRow}><Text style={styles.summaryAvailable}>● {summary.available} disponibles</Text><Text style={styles.summaryUnavailable}>● {summary.unavailable} indisponibles</Text><Text style={styles.summaryPending}>● {summary.pendingPlayers.length} sans réponse</Text></View>
                 </TouchableOpacity>
-
                 {summary.pendingPlayers.length ? <View style={styles.pendingBox}><Text style={styles.pendingLabel}>EN ATTENTE DE</Text><Text style={styles.pendingNames} numberOfLines={2}>{summary.pendingPlayers.map((player) => player.nickname).join(", ")}</Text></View> : null}
                 {match.notes ? <Text style={styles.notes}>{match.notes}</Text> : null}
-
                 {!isPast && match.status !== "Annulé" ? <><Text style={styles.answerLabel}>{needsResponse ? "CHOISIS TA DISPONIBILITÉ" : "TA DISPONIBILITÉ"}</Text><View style={styles.answerRow}><AnswerButton active={response === "Disponible"} positive label="Disponible" disabled={isSaving} onPress={() => void answer(match.id, "Disponible")} /><AnswerButton active={response === "Indisponible"} label="Indisponible" disabled={isSaving} onPress={() => void answer(match.id, "Indisponible")} /></View></> : null}
-
                 <View style={styles.actionRow}>
                   {!isPast && match.status !== "Annulé" ? <TouchableOpacity style={styles.calendarButton} onPress={() => void addToCalendar(match)}><Ionicons name="calendar-outline" size={17} color="#080808" /><Text style={styles.calendarButtonText}>CALENDRIER</Text></TouchableOpacity> : null}
                   <TouchableOpacity style={styles.shareButton} onPress={() => void shareMatch(match)}><Ionicons name="share-social-outline" size={18} color={Theme.colors.goldLight} /><Text style={styles.shareText}>PARTAGER</Text></TouchableOpacity>
@@ -262,7 +276,7 @@ function formatDate(value: string) { const date = new Date(`${value}T12:00:00`);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#050505" }, background: { flex: 1 }, backgroundImage: { opacity: 0.42 }, overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.7)" }, content: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 170 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 20 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }, title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 }, subtitle: { color: "#D0D0D0", marginTop: 8, marginBottom: 16 },
   filters: { flexDirection: "row", gap: 10, marginBottom: 20 }, filterButton: { flex: 1, minHeight: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, filterActive: { backgroundColor: Theme.colors.goldLight }, filterText: { color: "#D8D8D8", fontWeight: "900", fontSize: 12 }, filterTextActive: { color: "#080808" },
   emptyCard: { padding: 34, borderRadius: 24, alignItems: "center", backgroundColor: "rgba(8,8,8,0.88)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, emptyTitle: { color: "#fff", fontSize: 20, fontWeight: "900", marginTop: 12 }, emptyText: { color: "#C8C8C8", textAlign: "center", marginTop: 8 },
   card: { borderRadius: 26, padding: 17, marginBottom: 18, overflow: "hidden", backgroundColor: "rgba(8,8,8,0.94)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.13)" }, cardNeedsResponse: { borderColor: "rgba(245,205,81,0.72)", backgroundColor: "rgba(19,16,7,0.96)" }, priorityBanner: { marginHorizontal: -17, marginTop: -17, marginBottom: 15, minHeight: 35, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight }, priorityText: { color: "#080808", fontSize: 11, fontWeight: "900", letterSpacing: 1.1 },

@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, ImageBackground, Linking, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import PlusOverview from "../../components/dyno/PlusOverview";
 import { Theme } from "../../constants/theme";
 import { getAppSettings, updateAppSettings } from "../../services/appSettings";
 import { checkForAppUpdate, getInstalledVersion, openAppUpdate } from "../../services/appUpdateService";
@@ -166,6 +167,13 @@ export default function ProfileScreen() {
           <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
           <Text style={styles.title}>Plus</Text>
           <Text style={styles.subtitle}>Gérez les préférences, la synchronisation et les mises à jour.</Text>
+
+          <PlusOverview
+            notificationsEnabled={notificationsEnabled}
+            firebaseReady={syncDiagnostic?.firebase}
+            installedVersion={getInstalledVersion()}
+            updateAvailable={updateInfo?.updateAvailable}
+          />
 
           <Text style={styles.sectionLabel}>CENTRE DE SYNCHRONISATION</Text>
           <View style={styles.syncCard}>

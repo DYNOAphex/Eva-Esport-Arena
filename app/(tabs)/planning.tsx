@@ -2,10 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Calendar from "expo-calendar";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, ImageBackground, Modal, Platform, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, ImageBackground, Platform, SafeAreaView, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import AgendaMatchCard from "../../components/dyno/AgendaMatchCard";
 import AgendaSummary from "../../components/dyno/AgendaSummary";
+import ScrimDetailSheet from "../../components/dyno/ScrimDetailSheet";
 import { Theme } from "../../constants/theme";
 import { getScrimPermissions } from "../../services/accessControl";
 import { getAppSettings } from "../../services/appSettings";
@@ -180,7 +181,14 @@ export default function PlanningScreen() {
     ]);
   }
 
-  const detailRows = details ? roster.map((player) => ({ player, response: responseForPlayer(details, player) })) : [];
+  const detailResponses = details ? roster.map((player) => {
+    const response = responseForPlayer(details, player);
+    return {
+      id: player.id,
+      nickname: player.nickname,
+      status: response?.status ?? "Sans réponse" as const,
+    };
+  }) : [];
 
   return (
     <SafeAreaView style={styles.container}>
@@ -277,26 +285,19 @@ export default function PlanningScreen() {
         </ScrollView>
       </ImageBackground>
 
-      <Modal visible={Boolean(details)} transparent animationType="fade" onRequestClose={() => setDetails(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Réponses de l'équipe</Text>
-              <TouchableOpacity onPress={() => setDetails(null)}><Ionicons name="close" size={24} color="#fff" /></TouchableOpacity>
-            </View>
-            <ScrollView>
-              {detailRows.length ? detailRows.map(({ player, response: playerResponse }) => (
-                <View key={player.id} style={styles.responseRow}>
-                  <Text style={styles.responsePlayer}>{player.nickname}</Text>
-                  <Text style={[styles.responseStatus, playerResponse?.status === "Disponible" ? styles.responseOk : playerResponse?.status === "Indisponible" ? styles.responseNo : styles.responsePending]}>
-                    {playerResponse?.status ?? "Sans réponse"}
-                  </Text>
-                </View>
-              )) : <Text style={styles.noResponse}>Aucun membre dans l'équipe.</Text>}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      <ScrimDetailSheet
+        visible={Boolean(details)}
+        opponent={details?.opponent ?? ""}
+        type={details?.type ?? "Scrim"}
+        status={details ? (matchTimestamp(details) < Date.now() && details.status !== "Annulé" ? "Terminé" : details.status) : "En attente"}
+        dateLabel={details ? formatDate(details.date) : ""}
+        arrivalTime={details?.arrivalTime ?? "--:--"}
+        matchTime={details?.matchTime ?? "--:--"}
+        arena={details?.arena ?? "Aucune"}
+        notes={details?.notes}
+        responses={detailResponses}
+        onClose={() => setDetails(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -351,15 +352,4 @@ const styles = StyleSheet.create({
   shareText: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900" },
   moreButton: { width: 44, minHeight: 46, borderRadius: 15, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,218,104,0.45)" },
   deleteButton: { width: 44, minHeight: 46, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(130,20,20,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.35)" },
-  modalBackdrop: { flex: 1, justifyContent: "center", padding: 22, backgroundColor: "rgba(0,0,0,0.82)" },
-  modalCard: { maxHeight: "70%", borderRadius: 24, padding: 18, backgroundColor: "#101010", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.15)" },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  modalTitle: { color: "#fff", fontSize: 18, fontWeight: "900" },
-  responseRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "rgba(255,255,255,0.1)" },
-  responsePlayer: { color: "#fff", fontWeight: "800" },
-  responseStatus: { fontWeight: "900" },
-  responseOk: { color: "#83DD57" },
-  responseNo: { color: "#FF7777" },
-  responsePending: { color: Theme.colors.goldLight },
-  noResponse: { color: "#C8C8C8", textAlign: "center", paddingVertical: 20 },
 });

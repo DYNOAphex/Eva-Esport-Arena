@@ -4,7 +4,9 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Image, ImageBackground, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import DashboardCommandCenter from "../../components/dyno/DashboardCommandCenter";
 import { Theme } from "../../constants/theme";
+import { getAppSettings } from "../../services/appSettings";
 import { getMatches, Match, subscribeToMatches, toMatchDate } from "../../services/matchStore";
 import { getRoster, RosterPlayer, subscribeToRoster } from "../../services/rosterStore";
 
@@ -12,6 +14,12 @@ const logoSource = require("../../assets/images/logo-dyno.png");
 const marbleSource = require("../../assets/images/background-marble.jpg");
 
 function formatTime(value?: string) { return value ? value.replace(":", "h") : "--h--"; }
+function formatDateLabel(value?: string) {
+  if (!value) return undefined;
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
+}
 function getDateParts(value?: string) {
   if (!value) return { month: "---", day: "--" };
   const date = new Date(`${value}T12:00:00`);
@@ -24,11 +32,20 @@ export default function DashboardScreen() {
   const [refreshText, setRefreshText] = useState("Tire vers le bas pour actualiser");
   const [matches, setMatches] = useState<Match[]>([]);
   const [players, setPlayers] = useState<RosterPlayer[]>([]);
+  const [firebaseReady, setFirebaseReady] = useState<boolean | undefined>(undefined);
+  const [notificationsReady, setNotificationsReady] = useState<boolean | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
-    void getMatches().then((items) => active && setMatches(items));
-    void getRoster().then((items) => active && setPlayers(items));
+    void Promise.all([getMatches(), getRoster(), getAppSettings()])
+      .then(([matchItems, rosterItems, settings]) => {
+        if (!active) return;
+        setMatches(matchItems);
+        setPlayers(rosterItems);
+        setNotificationsReady(settings.notificationsEnabled);
+        setFirebaseReady(true);
+      })
+      .catch(() => active && setFirebaseReady(false));
     const unsubscribeMatches = subscribeToMatches(setMatches);
     const unsubscribeRoster = subscribeToRoster(setPlayers);
     return () => { active = false; unsubscribeMatches(); unsubscribeRoster(); };
@@ -89,14 +106,14 @@ export default function DashboardScreen() {
     if (refreshing) return;
     setRefreshing(true); setRefreshText("Synchronisation des données…");
     try {
-      const [matchItems, rosterItems] = await Promise.all([getMatches(), getRoster()]);
-      setMatches(matchItems); setPlayers(rosterItems);
+      const [matchItems, rosterItems, settings] = await Promise.all([getMatches(), getRoster(), getAppSettings()]);
+      setMatches(matchItems); setPlayers(rosterItems); setNotificationsReady(settings.notificationsEnabled); setFirebaseReady(true);
       if (!Updates.isEnabled) { setRefreshText("Données actualisées"); return; }
       const update = await Updates.checkForUpdateAsync();
       if (!update.isAvailable) { setRefreshText("Application et données actualisées"); return; }
       await Updates.fetchUpdateAsync();
       Alert.alert("Mise à jour prête", "La mise à jour a été téléchargée dans DYNO.", [{ text: "Redémarrer", onPress: () => Updates.reloadAsync() }]);
-    } catch { setRefreshText("Actualisation impossible"); }
+    } catch { setFirebaseReady(false); setRefreshText("Actualisation impossible"); }
     finally { setRefreshing(false); setTimeout(() => setRefreshText("Tire vers le bas pour actualiser"), 3500); }
   }, [refreshing]);
 
@@ -113,6 +130,20 @@ export default function DashboardScreen() {
             <View style={styles.brand}><Image source={logoSource} style={styles.logo} resizeMode="contain" /><View><Text style={styles.brandName}>DYNO</Text><Text style={styles.brandSub}>ESPORT MANAGER</Text></View></View>
             <View style={styles.headerSpacer} />
           </View>
+
+          <DashboardCommandCenter
+            opponent={nextMatch?.opponent}
+            dateLabel={formatDateLabel(nextMatch?.date)}
+            matchTime={nextMatch?.matchTime ? formatTime(nextMatch.matchTime) : undefined}
+            arena={nextMatch?.arena}
+            available={availableCount}
+            pending={pendingCount}
+            firebaseReady={firebaseReady}
+            notificationsReady={notificationsReady}
+            onOpenAgenda={() => router.push("/(tabs)/planning")}
+            onCreateScrim={() => router.push("/(tabs)/scrims")}
+            onOpenTeam={() => router.push("/(tabs)/team")}
+          />
 
           <View style={styles.heroCard}>
             <View style={styles.heroMarbleGlow} />

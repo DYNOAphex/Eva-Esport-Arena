@@ -3,7 +3,9 @@ import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, ImageBackground, Linking, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
+import AdminOverview from "../../components/dyno/AdminOverview";
 import PlusOverview from "../../components/dyno/PlusOverview";
+import UpdateStatusCard from "../../components/dyno/UpdateStatusCard";
 import { Theme } from "../../constants/theme";
 import { getAppSettings, updateAppSettings } from "../../services/appSettings";
 import { checkForAppUpdate, getInstalledVersion, openAppUpdate } from "../../services/appUpdateService";
@@ -175,6 +177,14 @@ export default function ProfileScreen() {
             updateAvailable={updateInfo?.updateAvailable}
           />
 
+          <AdminOverview
+            confirmationThreshold={confirmationThreshold}
+            notificationsEnabled={notificationsEnabled}
+            reminder24h={reminder24h}
+            reminder1h={reminder1h}
+            firebaseReady={syncDiagnostic?.firebase}
+          />
+
           <Text style={styles.sectionLabel}>CENTRE DE SYNCHRONISATION</Text>
           <View style={styles.syncCard}>
             <View style={styles.syncHeader}>
@@ -215,10 +225,16 @@ export default function ProfileScreen() {
           </View></> : null}
 
           <Text style={styles.sectionLabel}>MISE À JOUR</Text>
-          <View style={styles.updateCard}>
-            <View style={styles.updateHeader}><Ionicons name="cloud-download-outline" size={24} color={Theme.colors.goldLight} /><View style={styles.updateText}><Text style={styles.updateTitle}>Version installée : {getInstalledVersion()}</Text><Text style={styles.updateSubtitle}>{updateInfo?.updateAvailable ? `Version ${updateInfo.latestVersion} disponible` : "Vérifiez si une nouvelle version de DYNO est disponible."}</Text></View></View>
-            <TouchableOpacity style={styles.mainButton} onPress={() => updateInfo?.updateAvailable ? void openAppUpdate(updateInfo) : void checkUpdate()}><Text style={styles.mainButtonText}>{updateInfo?.updateAvailable ? "Installer la mise à jour" : checkingUpdate ? "Vérification…" : "Vérifier les mises à jour"}</Text></TouchableOpacity>
-          </View>
+          <UpdateStatusCard
+            installedVersion={getInstalledVersion()}
+            latestVersion={updateInfo?.latestVersion}
+            updateAvailable={updateInfo?.updateAvailable}
+            releaseNotes={updateInfo?.releaseNotes}
+          />
+          <TouchableOpacity style={[styles.mainButton, checkingUpdate && styles.disabled]} disabled={checkingUpdate} onPress={() => updateInfo?.updateAvailable ? void openAppUpdate(updateInfo) : void checkUpdate()}>
+            <Ionicons name={updateInfo?.updateAvailable ? "cloud-download-outline" : "refresh-outline"} size={18} color="#090909" />
+            <Text style={styles.mainButtonText}>{updateInfo?.updateAvailable ? "Télécharger et installer" : checkingUpdate ? "Vérification…" : "Vérifier les mises à jour"}</Text>
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.logoutButton} onPress={confirmLogout}><Ionicons name="log-out-outline" size={20} color="#FF8585" /><Text style={styles.logoutText}>Se déconnecter</Text></TouchableOpacity>
         </ScrollView>
@@ -242,5 +258,5 @@ const styles = StyleSheet.create({
   syncCard: { padding: 17, borderRadius: 24, backgroundColor: "rgba(10,10,10,0.94)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,215,90,0.25)" }, syncHeader: { flexDirection: "row", alignItems: "center", marginBottom: 10 }, syncIcon: { width: 48, height: 48, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,90,90,0.1)" }, syncIconOk: { backgroundColor: "rgba(85,209,135,0.12)" }, syncHeaderText: { flex: 1, marginLeft: 12 }, syncTitle: { color: "#fff", fontSize: 17, fontWeight: "900" }, syncSubtitle: { color: "#AFAFAF", marginTop: 3, fontSize: 11 }, syncError: { color: "#FF9B9B", fontSize: 11, lineHeight: 16, marginTop: 9 }, syncHint: { color: "#FFD978", fontSize: 11, lineHeight: 16, marginTop: 9 }, syncButton: { minHeight: 46, marginTop: 14, borderRadius: 15, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, syncButtonText: { color: "#090909", fontWeight: "900" },
   settingsCard: { borderRadius: 24, paddingHorizontal: 14, backgroundColor: "rgba(10,10,10,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, settingRow: { minHeight: 58, flexDirection: "row", alignItems: "center" }, disabled: { opacity: 0.42 }, settingIcon: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(224,184,67,0.09)", marginRight: 11 }, settingLabel: { flex: 1, color: "#fff", fontWeight: "800" }, settingMeta: { width: 112, flexDirection: "row", alignItems: "center", justifyContent: "flex-end" }, settingValue: { color: "#C8C8C8", fontSize: 11, marginRight: 5, textAlign: "right" }, separator: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.1)", marginLeft: 49 },
   pushCard: { padding: 16, borderRadius: 24, backgroundColor: "rgba(10,10,10,0.92)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, diagnosticRow: { minHeight: 34, flexDirection: "row", alignItems: "center" }, statusDot: { width: 9, height: 9, borderRadius: 5, marginRight: 10 }, statusOk: { backgroundColor: "#55D187" }, statusBad: { backgroundColor: "#FF7B7B" }, diagnosticLabel: { flex: 1, color: "#EAEAEA", fontSize: 12, fontWeight: "700" }, diagnosticValue: { color: "#FF9B9B", fontSize: 11, fontWeight: "900", textAlign: "right" }, diagnosticValueOk: { color: "#7BE6A7" }, buttonRow: { flexDirection: "row", gap: 10, marginTop: 14 }, secondaryButton: { flex: 1, minHeight: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(224,184,67,0.35)", backgroundColor: "rgba(224,184,67,0.08)" }, secondaryButtonText: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900" }, testButton: { minHeight: 44, marginTop: 10, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, testButtonText: { color: "#090909", fontSize: 12, fontWeight: "900" },
-  updateCard: { padding: 16, borderRadius: 24, backgroundColor: "rgba(10,10,10,0.9)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" }, updateHeader: { flexDirection: "row", alignItems: "center" }, updateText: { flex: 1, marginLeft: 12 }, updateTitle: { color: "#fff", fontWeight: "900" }, updateSubtitle: { color: "#C8C8C8", fontSize: 11, marginTop: 4, lineHeight: 16 }, mainButton: { minHeight: 44, marginTop: 13, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, mainButtonText: { color: "#090909", fontSize: 12, fontWeight: "900" }, logoutButton: { minHeight: 48, borderRadius: 18, marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(130,20,20,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.22)" }, logoutText: { color: "#FF8585", fontWeight: "900" },
+  mainButton: { minHeight: 48, marginTop: -4, borderRadius: 16, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.gold }, mainButtonText: { color: "#090909", fontSize: 12, fontWeight: "900" }, logoutButton: { minHeight: 48, borderRadius: 18, marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "rgba(130,20,20,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,100,100,0.22)" }, logoutText: { color: "#FF8585", fontWeight: "900" },
 });

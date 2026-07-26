@@ -38,6 +38,15 @@
         "expo-channel-name": "preview"
       }
     },
+    "androidStatusBar": {
+      "translucent": false,
+      "backgroundColor": "#050505",
+      "barStyle": "light-content"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#050505",
+      "barStyle": "light-content"
+    },
     "android": {
       "package": "com.dynoaphex.evaesportarena",
       "adaptiveIcon": {

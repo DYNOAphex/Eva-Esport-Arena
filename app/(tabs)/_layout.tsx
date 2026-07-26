@@ -16,7 +16,7 @@ function CenterAction({ focused }: { focused: boolean }) {
   return (
     <View style={[styles.centerGlow, focused && styles.centerGlowActive]}>
       <View style={styles.centerButton}>
-        <Ionicons name="add" size={30} color="#FFFFFF" />
+        <Ionicons name="add" size={28} color="#FFFFFF" />
       </View>
     </View>
   );
@@ -58,8 +58,8 @@ export default function TabsLayout() {
     return matches.filter((match) => match.status !== "Annulé" && !match.responses.some((response) => response.uid === session.localId && response.status !== "En attente")).length;
   }, [matches, session]);
 
-  const bottomOffset = Math.max(insets.bottom, 10);
-  const tabBarHeight = 66 + bottomOffset;
+  const safeBottom = Math.max(insets.bottom, 8);
+  const tabBarHeight = 58 + safeBottom;
 
   return (
     <Tabs
@@ -69,27 +69,28 @@ export default function TabsLayout() {
         tabBarActiveTintColor: Theme.colors.goldLight,
         tabBarInactiveTintColor: "#A5A5A5",
         tabBarHideOnKeyboard: true,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "800", marginTop: 1 },
+        tabBarLabelStyle: { fontSize: 9, fontWeight: "800", marginTop: -1 },
+        tabBarIconStyle: { marginTop: 1 },
         tabBarStyle: {
           position: "absolute",
-          left: 14,
-          right: 14,
-          bottom: Math.max(insets.bottom / 2, 8),
+          left: 8,
+          right: 8,
+          bottom: 0,
           height: tabBarHeight,
-          paddingTop: 8,
-          paddingBottom: bottomOffset,
-          borderRadius: 26,
-          backgroundColor: "rgba(7,7,7,0.94)",
+          paddingTop: 6,
+          paddingBottom: safeBottom,
+          borderRadius: 22,
+          backgroundColor: "rgba(7,7,7,0.97)",
           borderTopWidth: 0,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: Theme.colors.borderGold,
           shadowColor: "#000000",
-          shadowOpacity: 0.32,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 7 },
-          elevation: 18,
+          shadowOpacity: 0.28,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 5 },
+          elevation: 14,
         },
-        tabBarItemStyle: { borderRadius: 20 },
+        tabBarItemStyle: { borderRadius: 18, minHeight: 50 },
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? "home" : "home-outline"} color={color} size={focused ? size + 1 : size} /> }} />
@@ -104,7 +105,7 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  centerGlow: { width: 54, height: 54, borderRadius: 27, marginTop: -16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.38)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.28, shadowRadius: 12, shadowOffset: { width: 0, height: 0 }, elevation: 14 },
-  centerGlowActive: { transform: [{ scale: 1.05 }], backgroundColor: "rgba(217,175,49,0.17)", borderColor: "rgba(255,226,128,0.7)" },
-  centerButton: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.96)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.5)" },
+  centerGlow: { width: 50, height: 50, borderRadius: 25, marginTop: -12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.38)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.24, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
+  centerGlowActive: { transform: [{ scale: 1.04 }], backgroundColor: "rgba(217,175,49,0.17)", borderColor: "rgba(255,226,128,0.7)" },
+  centerButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.96)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.5)" },
 });

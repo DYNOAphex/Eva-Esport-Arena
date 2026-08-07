@@ -26,7 +26,7 @@ jobs:
     name: Create signed Android APK
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -100,9 +100,6 @@ jobs:
           if "DYNO_UPLOAD_STORE_FILE" not in text:
               text = text.replace(marker, signing + marker, 1)
 
-          # Expo prebuild signs release with the debug key by default.
-          # Replace every generated debug signing reference so the release APK
-          # definitely uses the original EAS keystore.
           text = text.replace("signingConfig signingConfigs.debug", "signingConfig signingConfigs.release")
 
           build_number = 1000 + int(os.environ["BUILD_NUMBER"])
@@ -131,15 +128,35 @@ jobs:
       - name: Rename APK
         run: cp android/app/build/outputs/apk/release/app-release.apk DYNO-Esport-Manager.apk
 
-      - name: Upload installable APK
+      - name: Upload installable APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: DYNO-Esport-Manager-APK
           path: DYNO-Esport-Manager.apk
           retention-days: 30
 
+      - name: Publish direct APK download in GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: dyno-preview
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" DYNO-Esport-Manager.apk --clobber
+            gh release edit "$RELEASE_TAG" \
+              --title "DYNO Esport Manager - Dernière APK" \
+              --notes "APK Android signée la plus récente générée depuis main.\n\nCommit : $GITHUB_SHA\nBuild GitHub Actions : #$GITHUB_RUN_NUMBER"
+          else
+            gh release create "$RELEASE_TAG" DYNO-Esport-Manager.apk \
+              --target "$GITHUB_SHA" \
+              --title "DYNO Esport Manager - Dernière APK" \
+              --notes "APK Android signée la plus récente générée depuis main.\n\nCommit : $GITHUB_SHA\nBuild GitHub Actions : #$GITHUB_RUN_NUMBER" \
+              --prerelease
+          fi
+
       - name: Publish instructions
         run: |
-          echo "## APK DYNO générée gratuitement sur GitHub" >> "$GITHUB_STEP_SUMMARY"
+          echo "## APK DYNO disponible" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Télécharge l’artifact **DYNO-Esport-Manager-APK** en bas de cette exécution." >> "$GITHUB_STEP_SUMMARY"
+          echo "Téléchargement direct : **Releases → DYNO Esport Manager - Dernière APK → DYNO-Esport-Manager.apk**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Lien stable : https://github.com/${GITHUB_REPOSITORY}/releases/download/dyno-preview/DYNO-Esport-Manager.apk" >> "$GITHUB_STEP_SUMMARY"

@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Theme } from "../../constants/theme";
 import { canCreateScrim } from "../../services/accessControl";
 import { getStoredSession } from "../../services/authService";
-import { getMatches, subscribeToMatches } from "../../services/matchStore";
+import { getMatches, subscribeToMatches, toMatchDate } from "../../services/matchStore";
 import type { AuthSession } from "../../services/authService";
 import type { Match } from "../../services/matchStore";
 
@@ -16,7 +16,7 @@ function CenterAction({ focused }: { focused: boolean }) {
   return (
     <View style={[styles.centerGlow, focused && styles.centerGlowActive]}>
       <View style={styles.centerButton}>
-        <Ionicons name="add" size={28} color="#FFFFFF" />
+        <Ionicons name="add" size={26} color="#FFFFFF" />
       </View>
     </View>
   );
@@ -75,11 +75,20 @@ export default function TabsLayout() {
 
   const pendingCount = useMemo(() => {
     if (!session) return 0;
-    return matches.filter((match) => match.status !== "Annulé" && !match.responses.some((response) => response.uid === session.localId && response.status !== "En attente")).length;
+    const now = Date.now();
+    return matches.filter((match) => {
+      if (match.status === "Annulé") return false;
+      const date = toMatchDate(match);
+      if (!date || date.getTime() < now) return false;
+      const response = match.responses.find((item) => item.uid === session.localId)?.status ?? "En attente";
+      return response === "En attente";
+    }).length;
   }, [matches, session]);
 
-  const safeBottom = Math.max(insets.bottom, 8);
-  const tabBarHeight = 58 + safeBottom;
+  // Sur Android la barre système est déjà opaque : réinjecter tout l'inset dans
+  // la tab bar créait une seconde grosse zone noire au-dessus des boutons système.
+  const safeBottom = Platform.OS === "android" ? 6 : Math.max(insets.bottom, 6);
+  const tabBarHeight = 56 + safeBottom;
 
   return (
     <Tabs
@@ -87,32 +96,32 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Theme.colors.goldLight,
-        tabBarInactiveTintColor: "#C2C2C2",
-        tabBarActiveBackgroundColor: "rgba(246,215,106,0.075)",
+        tabBarInactiveTintColor: "#C8C8C8",
+        tabBarActiveBackgroundColor: "rgba(246,215,106,0.07)",
         tabBarHideOnKeyboard: true,
         tabBarAllowFontScaling: false,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "900", marginTop: 0 },
-        tabBarIconStyle: { marginTop: 1 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "900", marginTop: -1 },
+        tabBarIconStyle: { marginTop: 0 },
         tabBarStyle: {
           position: "absolute",
-          left: 8,
-          right: 8,
+          left: 6,
+          right: 6,
           bottom: 0,
           height: tabBarHeight,
-          paddingTop: 5,
+          paddingTop: 4,
           paddingBottom: safeBottom,
-          borderRadius: 22,
-          backgroundColor: "rgba(7,7,7,0.98)",
+          borderRadius: 20,
+          backgroundColor: "rgba(6,6,6,0.985)",
           borderTopWidth: 0,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: "rgba(246,215,106,0.28)",
+          borderColor: "rgba(246,215,106,0.24)",
           shadowColor: "#000000",
-          shadowOpacity: 0.34,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 5 },
-          elevation: 16,
+          shadowOpacity: 0.3,
+          shadowRadius: 13,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 14,
         },
-        tabBarItemStyle: { borderRadius: 16, minHeight: 49, marginHorizontal: 1 },
+        tabBarItemStyle: { borderRadius: 15, minHeight: 46, marginHorizontal: 1 },
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <NavIcon focused={focused} color={color} size={size} active="home" inactive="home-outline" /> }} />
@@ -127,9 +136,9 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  iconSlot: { width: 34, height: 30, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  iconSlotActive: { backgroundColor: "rgba(246,215,106,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.2)" },
-  centerGlow: { width: 50, height: 50, borderRadius: 25, marginTop: -12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.38)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.24, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 10 },
+  iconSlot: { width: 32, height: 28, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  iconSlotActive: { backgroundColor: "rgba(246,215,106,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.18)" },
+  centerGlow: { width: 46, height: 46, borderRadius: 23, marginTop: -10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.38)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.22, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 9 },
   centerGlowActive: { transform: [{ scale: 1.04 }], backgroundColor: "rgba(217,175,49,0.17)", borderColor: "rgba(255,226,128,0.7)" },
-  centerButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.96)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.5)" },
+  centerButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.96)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.5)" },
 });

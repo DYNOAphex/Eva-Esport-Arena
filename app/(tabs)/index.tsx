@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Updates from "expo-updates";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Image, ImageBackground, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
@@ -8,6 +8,7 @@ import DashboardCommandCenter from "../../components/dyno/DashboardCommandCenter
 import { Theme } from "../../constants/theme";
 import { getAppSettings } from "../../services/appSettings";
 import { getMatches, Match, subscribeToMatches, toMatchDate } from "../../services/matchStore";
+import { getUnreadNotificationCount } from "../../services/notificationCenterStore";
 import { getRoster, RosterPlayer, subscribeToRoster } from "../../services/rosterStore";
 
 const logoSource = require("../../assets/images/logo-dyno.png");
@@ -34,6 +35,7 @@ export default function DashboardScreen() {
   const [players, setPlayers] = useState<RosterPlayer[]>([]);
   const [firebaseReady, setFirebaseReady] = useState<boolean | undefined>(undefined);
   const [notificationsReady, setNotificationsReady] = useState<boolean | undefined>(undefined);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +52,16 @@ export default function DashboardScreen() {
     const unsubscribeRoster = subscribeToRoster(setPlayers);
     return () => { active = false; unsubscribeMatches(); unsubscribeRoster(); };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void getUnreadNotificationCount(matches)
+        .then((count) => { if (active) setUnreadNotifications(count); })
+        .catch(() => null);
+      return () => { active = false; };
+    }, [matches]),
+  );
 
   useEffect(() => {
     if (!Updates.isEnabled) return;
@@ -108,6 +120,7 @@ export default function DashboardScreen() {
     try {
       const [matchItems, rosterItems, settings] = await Promise.all([getMatches(), getRoster(), getAppSettings()]);
       setMatches(matchItems); setPlayers(rosterItems); setNotificationsReady(settings.notificationsEnabled); setFirebaseReady(true);
+      setUnreadNotifications(await getUnreadNotificationCount(matchItems));
       if (!Updates.isEnabled) { setRefreshText("Données actualisées"); return; }
       const update = await Updates.checkForUpdateAsync();
       if (!update.isAvailable) { setRefreshText("Application et données actualisées"); return; }
@@ -116,6 +129,8 @@ export default function DashboardScreen() {
     } catch { setFirebaseReady(false); setRefreshText("Actualisation impossible"); }
     finally { setRefreshing(false); setTimeout(() => setRefreshText("Tire vers le bas pour actualiser"), 3500); }
   }, [refreshing]);
+
+  const notificationLabel = unreadNotifications > 9 ? "9+" : String(unreadNotifications);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -126,7 +141,20 @@ export default function DashboardScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshApp} tintColor={Theme.colors.goldLight} colors={[Theme.colors.gold]} progressBackgroundColor="#151515" />}>
           <Text style={styles.refreshHint}>{refreshText}</Text>
           <View style={styles.header}>
-            <TouchableOpacity style={styles.roundButton} activeOpacity={0.8} onPress={() => router.push("/(tabs)/profile")}><Ionicons name="notifications-outline" size={23} color="#fff" />{pendingCount > 0 && <View style={styles.notificationDot} />}</TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={unreadNotifications ? `${unreadNotifications} notifications non lues` : "Notifications"}
+              style={styles.roundButton}
+              activeOpacity={0.8}
+              onPress={() => router.push("/notifications")}
+            >
+              <Ionicons name={unreadNotifications ? "notifications" : "notifications-outline"} size={23} color="#fff" />
+              {unreadNotifications > 0 ? (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{notificationLabel}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
             <View style={styles.brand}><Image source={logoSource} style={styles.logo} resizeMode="contain" /><View><Text style={styles.brandName}>DYNO</Text><Text style={styles.brandSub}>ESPORT MANAGER</Text></View></View>
             <View style={styles.headerSpacer} />
           </View>
@@ -175,7 +203,8 @@ const styles = StyleSheet.create({
   refreshHint: { color: "rgba(246,215,106,0.9)", fontSize: 10, textAlign: "center", textShadowColor: "rgba(0,0,0,0.8)", textShadowRadius: 4 },
   header: { minHeight: 96, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 15 },
   roundButton: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.surfaceElevated, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.colors.borderGold },
-  notificationDot: { position: "absolute", right: 7, top: 7, width: 10, height: 10, borderRadius: 5, backgroundColor: Theme.colors.gold },
+  notificationBadge: { position: "absolute", right: -2, top: -2, minWidth: 19, height: 19, paddingHorizontal: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#E84B4B", borderWidth: 2, borderColor: "#111111" },
+  notificationBadgeText: { color: "#FFFFFF", fontSize: 9, lineHeight: 12, fontWeight: "900" },
   headerSpacer: { width: 50 },
   brand: { flexDirection: "row", alignItems: "center", gap: 8 },
   logo: { width: 44, height: 44, borderRadius: 12 },

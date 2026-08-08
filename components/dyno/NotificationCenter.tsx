@@ -89,7 +89,7 @@ export default function NotificationCenter({ items, onOpenNotification, onMarkAl
                   <Text style={styles.notificationMessage} numberOfLines={2}>{item.message}</Text>
                   <Text style={styles.time}>{item.timeLabel}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#777777" />
+                <Ionicons name="chevron-forward" size={18} color="#A0A0A0" />
               </TouchableOpacity>
               {index < visibleItems.length - 1 ? <View style={styles.separator} /> : null}
             </View>
@@ -97,7 +97,7 @@ export default function NotificationCenter({ items, onOpenNotification, onMarkAl
         </View>
       ) : (
         <View style={styles.empty}>
-          <Ionicons name="notifications-off-outline" size={28} color="#808080" />
+          <Ionicons name="notifications-off-outline" size={28} color="#929292" />
           <Text style={styles.emptyTitle}>Aucune notification</Text>
           <Text style={styles.emptyText}>Les rappels, scrims et informations d’équipe apparaîtront ici.</Text>
         </View>
@@ -138,13 +138,13 @@ const styles = StyleSheet.create({
   markAllButton: { minHeight: 34, paddingHorizontal: 11, borderRadius: 12, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.35)" },
   markAllText: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900" },
   filters: { gap: 8, paddingTop: 15, paddingBottom: 12 },
-  filter: { minHeight: 34, paddingHorizontal: 13, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.035)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
+  filter: { minHeight: 35, paddingHorizontal: 13, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.12)" },
   filterActive: { backgroundColor: Theme.colors.goldLight, borderColor: Theme.colors.goldLight },
-  filterText: { color: "#A7A7A7", fontSize: 9, fontWeight: "900" },
+  filterText: { color: "#C6C6C6", fontSize: 9, fontWeight: "900" },
   filterTextActive: { color: "#090909" },
-  list: { borderRadius: 18, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.025)" },
+  list: { borderRadius: 18, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.03)" },
   notification: { minHeight: 84, flexDirection: "row", alignItems: "center", gap: 11, paddingHorizontal: 12, paddingVertical: 11 },
-  notificationUnread: { backgroundColor: "rgba(246,215,106,0.045)" },
+  notificationUnread: { backgroundColor: "rgba(246,215,106,0.05)" },
   categoryIcon: { width: 40, height: 40, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   categoryScrim: { backgroundColor: "rgba(246,215,106,0.08)" },
   categoryReminder: { backgroundColor: "rgba(255,203,107,0.08)" },
@@ -154,10 +154,10 @@ const styles = StyleSheet.create({
   notificationTitleRow: { flexDirection: "row", alignItems: "center", gap: 7 },
   notificationTitle: { flexShrink: 1, color: "#FFFFFF", fontSize: 12, fontWeight: "900" },
   smallDot: { width: 7, height: 7, borderRadius: 99, backgroundColor: Theme.colors.goldLight },
-  notificationMessage: { color: "#B6B6B6", fontSize: 10, lineHeight: 15, marginTop: 4 },
-  time: { color: "#777777", fontSize: 8, fontWeight: "800", marginTop: 5 },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.08)", marginLeft: 63 },
-  empty: { alignItems: "center", paddingVertical: 26, paddingHorizontal: 18, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.025)" },
+  notificationMessage: { color: "#D0D0D0", fontSize: 10, lineHeight: 15, marginTop: 4 },
+  time: { color: "#9A9A9A", fontSize: 8, fontWeight: "800", marginTop: 5 },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: "rgba(255,255,255,0.09)", marginLeft: 63 },
+  empty: { alignItems: "center", paddingVertical: 26, paddingHorizontal: 18, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.03)" },
   emptyTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "900", marginTop: 10 },
-  emptyText: { color: "#929292", fontSize: 10, lineHeight: 15, textAlign: "center", marginTop: 5 },
+  emptyText: { color: "#AFAFAF", fontSize: 10, lineHeight: 15, textAlign: "center", marginTop: 5 },
 });

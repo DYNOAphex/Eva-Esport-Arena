@@ -87,7 +87,12 @@ export default function DashboardScreen() {
 
   const upcomingMatches = useMemo(() => {
     const now = Date.now();
-    return matches.filter((match) => { const date = toMatchDate(match); return Boolean(date && date.getTime() >= now && match.status !== "Annulé"); });
+    return matches
+      .filter((match) => {
+        const date = toMatchDate(match);
+        return Boolean(date && date.getTime() >= now && match.status !== "Annulé");
+      })
+      .sort((a, b) => (toMatchDate(a)?.getTime() ?? Number.MAX_SAFE_INTEGER) - (toMatchDate(b)?.getTime() ?? Number.MAX_SAFE_INTEGER));
   }, [matches]);
 
   const nextMatch = upcomingMatches[0];
@@ -173,16 +178,27 @@ export default function DashboardScreen() {
             onOpenTeam={() => router.push("/(tabs)/team")}
           />
 
-          <View style={styles.heroCard}>
-            <View style={styles.heroMarbleGlow} />
-            <View style={styles.goldHairline} />
-            <View style={styles.heroTop}><View style={styles.dateBadge}><Text style={styles.dateMonth}>{dateParts.month}</Text><Text style={styles.dateDay}>{dateParts.day}</Text></View><View style={styles.heroText}><Text style={styles.eyebrow}>{nextMatch ? `PROCHAIN ${nextMatch.type.toUpperCase()}` : "AUCUN MATCH PRÉVU"}</Text><Text style={styles.confirmedSmall}>{nextMatch?.status.toUpperCase() ?? "À PLANIFIER"}</Text></View></View>
-            <View style={styles.versusRow}><Text style={styles.teamName}>DYNO</Text><Text style={styles.vs}>VS</Text><Text style={styles.teamName}>{nextMatch?.opponent.toUpperCase() ?? "?"}</Text></View>
-            <View style={styles.metaRow}><Meta icon="time-outline" value={formatTime(nextMatch?.arrivalTime)} label="Lobby" /><Meta icon="locate-outline" value={formatTime(nextMatch?.matchTime)} label="Début du match" /><Meta icon="business-outline" value={nextMatch?.arena ?? "--"} label={`Mode : ${nextMatch?.type ?? "--"}`} /></View>
-            <View style={styles.confirmButton}><Ionicons name={nextMatch?.status === "Confirmé" ? "checkmark" : "hourglass-outline"} size={24} color="#92DD54" /><Text style={styles.confirmText}>{nextMatch?.status ?? "À planifier"}</Text></View>
-          </View>
+          {nextMatch ? (
+            <View style={styles.heroCard}>
+              <View style={styles.heroMarbleGlow} />
+              <View style={styles.goldHairline} />
+              <View style={styles.heroTop}><View style={styles.dateBadge}><Text style={styles.dateMonth}>{dateParts.month}</Text><Text style={styles.dateDay}>{dateParts.day}</Text></View><View style={styles.heroText}><Text style={styles.eyebrow}>{`PROCHAIN ${nextMatch.type.toUpperCase()}`}</Text><Text style={styles.confirmedSmall}>{nextMatch.status.toUpperCase()}</Text></View></View>
+              <View style={styles.versusRow}><Text style={styles.teamName}>DYNO</Text><Text style={styles.vs}>VS</Text><Text style={styles.teamName}>{nextMatch.opponent.toUpperCase()}</Text></View>
+              <View style={styles.metaRow}><Meta icon="time-outline" value={formatTime(nextMatch.arrivalTime)} label="Lobby" /><Meta icon="locate-outline" value={formatTime(nextMatch.matchTime)} label="Début du match" /><Meta icon="business-outline" value={nextMatch.arena ?? "--"} label={`Mode : ${nextMatch.type}`} /></View>
+              <View style={styles.confirmButton}><Ionicons name={nextMatch.status === "Confirmé" ? "checkmark" : "hourglass-outline"} size={24} color="#92DD54" /><Text style={styles.confirmText}>{nextMatch.status}</Text></View>
+            </View>
+          ) : (
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ouvrir l'agenda" activeOpacity={0.82} style={styles.emptyScheduleCard} onPress={() => router.push("/(tabs)/planning")}>
+              <View style={styles.emptyScheduleIcon}><Ionicons name="calendar-clear-outline" size={25} color={Theme.colors.goldLight} /></View>
+              <View style={styles.emptyScheduleText}>
+                <Text style={styles.emptyScheduleTitle}>Agenda libre</Text>
+                <Text style={styles.emptyScheduleSubtitle}>Aucun rendez-vous à venir. Consulte l’historique ou planifie le prochain scrim.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Theme.colors.goldLight} />
+            </TouchableOpacity>
+          )}
 
-          <View style={styles.statsGrid}>{stats.map((stat) => <View key={stat.label} style={styles.statCard}><View style={styles.cardSheen} /><Ionicons name={stat.icon} size={26} color={Theme.colors.goldLight} /><Text style={styles.statValue}>{stat.value}</Text><Text style={styles.statLabel}>{stat.label}</Text><Text style={styles.statDetail}>{stat.detail}</Text></View>)}</View>
+          <View style={styles.statsGrid}>{stats.map((stat) => <View key={stat.label} style={styles.statCard}><View style={styles.cardSheen} /><Ionicons name={stat.icon} size={24} color={Theme.colors.goldLight} /><Text style={styles.statValue}>{stat.value}</Text><Text style={styles.statLabel}>{stat.label}</Text><Text style={styles.statDetail}>{stat.detail}</Text></View>)}</View>
           <View style={styles.sectionCard}><View style={styles.cardSheen} /><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>JOUEURS DE L'ÉQUIPE</Text><Text style={styles.seeAll}>{playerCount} joueur{playerCount > 1 ? "s" : ""}</Text></View>{displayedPlayers.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false}>{displayedPlayers.map((player) => <View key={player.id} style={styles.player}><View style={styles.avatar}><Text style={styles.avatarInitial}>{player.nickname.slice(0, 1).toUpperCase()}</Text></View><Text style={styles.playerName}>{player.nickname}</Text></View>)}</ScrollView> : <Text style={styles.emptyRoster}>Aucun joueur ajouté.</Text>}</View>
         </ScrollView>
       </ImageBackground>
@@ -199,9 +215,9 @@ const styles = StyleSheet.create({
   backgroundShade: { ...StyleSheet.absoluteFillObject, backgroundColor: Theme.colors.overlay },
   marbleLight: { position: "absolute", top: -120, right: -90, width: 280, height: 420, borderRadius: 160, backgroundColor: "rgba(255,255,255,0.08)", transform: [{ rotate: "18deg" }] },
   goldVein: { position: "absolute", top: 64, right: 46, width: 1, height: 310, backgroundColor: "rgba(246,215,106,0.3)", transform: [{ rotate: "24deg" }] },
-  content: { paddingHorizontal: 18, paddingTop: 28, paddingBottom: 190 },
+  content: { paddingHorizontal: 18, paddingTop: 24, paddingBottom: 116 },
   refreshHint: { color: "rgba(246,215,106,0.9)", fontSize: 10, textAlign: "center", textShadowColor: "rgba(0,0,0,0.8)", textShadowRadius: 4 },
-  header: { minHeight: 96, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 15 },
+  header: { minHeight: 84, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   roundButton: { width: 50, height: 50, borderRadius: 25, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.surfaceElevated, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.colors.borderGold },
   notificationBadge: { position: "absolute", right: -2, top: -2, minWidth: 19, height: 19, paddingHorizontal: 4, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "#E84B4B", borderWidth: 2, borderColor: "#111111" },
   notificationBadgeText: { color: "#FFFFFF", fontSize: 9, lineHeight: 12, fontWeight: "900" },
@@ -229,12 +245,17 @@ const styles = StyleSheet.create({
   metaLabel: { color: Theme.colors.textMuted, fontSize: 10, textAlign: "center", marginTop: 3 },
   confirmButton: { alignSelf: "center", minWidth: 190, height: 48, borderRadius: 24, marginTop: 19, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(4,4,4,0.76)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.16)" },
   confirmText: { color: "#92DD54", fontSize: 17, fontWeight: "900" },
+  emptyScheduleCard: { minHeight: 104, marginTop: 2, borderRadius: 23, paddingHorizontal: 17, flexDirection: "row", alignItems: "center", gap: 13, backgroundColor: "rgba(7,7,7,0.72)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.28)" },
+  emptyScheduleIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,215,106,0.09)" },
+  emptyScheduleText: { flex: 1 },
+  emptyScheduleTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "900" },
+  emptyScheduleSubtitle: { color: "#C7C7C7", fontSize: 11, lineHeight: 16, marginTop: 4 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", marginTop: 14 },
-  statCard: { overflow: "hidden", width: "48.4%", minHeight: 154, borderRadius: 24, padding: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.colors.border, marginBottom: 12 },
+  statCard: { overflow: "hidden", width: "48.4%", minHeight: 132, borderRadius: 22, padding: 14, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.colors.border, marginBottom: 11 },
   cardSheen: { position: "absolute", top: -55, right: -35, width: 120, height: 190, borderRadius: 70, backgroundColor: "rgba(255,255,255,0.045)", transform: [{ rotate: "20deg" }] },
-  statValue: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 8 },
+  statValue: { color: "#fff", fontSize: 29, fontWeight: "900", marginTop: 6 },
   statLabel: { color: "#fff", fontSize: 14, fontWeight: "900" },
-  statDetail: { color: Theme.colors.textMuted, fontSize: 11, marginTop: 6 },
+  statDetail: { color: Theme.colors.textMuted, fontSize: 10, marginTop: 5 },
   sectionCard: { overflow: "hidden", borderRadius: 24, padding: 16, backgroundColor: Theme.colors.surface, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.colors.border, marginBottom: 14 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
   sectionTitle: { color: Theme.colors.goldLight, fontSize: 12, fontWeight: "900" },

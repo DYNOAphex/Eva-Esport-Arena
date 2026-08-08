@@ -5,6 +5,7 @@ import type { DynoNotificationItem } from "../components/dyno/NotificationCenter
 import type { Match } from "./matchStore";
 
 const READ_IDS_KEY = "dyno_notification_center_read_ids_v1";
+const MAX_HISTORY_ITEMS = 12;
 
 async function getReadIds() {
   const raw = await AsyncStorage.getItem(READ_IDS_KEY);
@@ -20,6 +21,11 @@ async function saveReadIds(ids: Set<string>) {
   await AsyncStorage.setItem(READ_IDS_KEY, JSON.stringify([...ids].slice(-250)));
 }
 
+function matchTimestamp(match: Pick<Match, "date" | "matchTime">) {
+  const timestamp = new Date(`${match.date}T${match.matchTime}:00`).getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 function formatDate(dateValue: string, timeValue?: string) {
   const date = new Date(`${dateValue}T${timeValue || "12:00"}:00`);
   if (Number.isNaN(date.getTime())) return dateValue;
@@ -28,26 +34,31 @@ function formatDate(dateValue: string, timeValue?: string) {
 
 function buildMatchNotifications(matches: Match[]): DynoNotificationItem[] {
   const now = Date.now();
-  return matches
-    .filter((match) => match.status !== "Annulé")
-    .map((match) => {
-      const matchDate = new Date(`${match.date}T${match.matchTime}:00`);
-      const future = !Number.isNaN(matchDate.getTime()) && matchDate.getTime() >= now;
-      const pending = match.responses.filter((response) => response.status === "En attente").length;
-      const available = match.responses.filter((response) => response.status === "Disponible").length;
+  const activeMatches = matches.filter((match) => match.status !== "Annulé");
+  const upcoming = activeMatches
+    .filter((match) => matchTimestamp(match) >= now)
+    .sort((a, b) => matchTimestamp(a) - matchTimestamp(b));
+  const history = activeMatches
+    .filter((match) => matchTimestamp(match) < now)
+    .sort((a, b) => matchTimestamp(b) - matchTimestamp(a))
+    .slice(0, MAX_HISTORY_ITEMS);
 
-      return {
-        id: `match-${match.id}-${match.status}-${match.responses.length}`,
-        title: future ? `${match.type} contre ${match.opponent}` : `${match.type} terminé`,
-        message: future
-          ? `${formatDate(match.date, match.matchTime)} à ${match.matchTime.replace(":", "h")} · ${available} disponible${available > 1 ? "s" : ""}${pending ? ` · ${pending} en attente` : ""}`
-          : `Retrouve le récapitulatif du rendez-vous contre ${match.opponent}.`,
-        timeLabel: future ? "À venir" : "Historique",
-        category: "scrim" as const,
-        matchId: match.id,
-      };
-    })
-    .sort((a, b) => (a.timeLabel === "À venir" && b.timeLabel !== "À venir" ? -1 : 0));
+  return [...upcoming, ...history].map((match) => {
+    const future = matchTimestamp(match) >= now;
+    const pending = match.responses.filter((response) => response.status === "En attente").length;
+    const available = match.responses.filter((response) => response.status === "Disponible").length;
+
+    return {
+      id: `match-${match.id}-${match.status}-${match.responses.length}`,
+      title: future ? `${match.type} contre ${match.opponent}` : `${match.type} terminé`,
+      message: future
+        ? `${formatDate(match.date, match.matchTime)} à ${match.matchTime.replace(":", "h")} · ${available} disponible${available > 1 ? "s" : ""}${pending ? ` · ${pending} en attente` : ""}`
+        : `Retrouve le récapitulatif du rendez-vous contre ${match.opponent}.`,
+      timeLabel: future ? "À venir" : "Historique",
+      category: "scrim" as const,
+      matchId: match.id,
+    };
+  });
 }
 
 export async function getNotificationCenterItems(matches: Match[]): Promise<DynoNotificationItem[]> {

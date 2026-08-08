@@ -20,7 +20,7 @@ export default function AgendaSummary({ upcoming, awaitingResponse, confirmed }:
   return (
     <GlassCard style={styles.card} strong>
       <View style={styles.header}>
-        <View>
+        <View style={styles.headerText}>
           <Text style={styles.kicker}>SITUATION DE L’ÉQUIPE</Text>
           <Text style={styles.title}>Agenda en un coup d’œil</Text>
         </View>
@@ -33,7 +33,7 @@ export default function AgendaSummary({ upcoming, awaitingResponse, confirmed }:
             <View style={[styles.iconBox, item.tone === "positive" && styles.iconPositive, item.tone === "warning" && styles.iconWarning]}>
               <Ionicons
                 name={item.icon}
-                size={19}
+                size={18}
                 color={item.tone === "positive" ? "#8CE06A" : item.tone === "warning" ? "#FF9A78" : Theme.colors.goldLight}
               />
             </View>
@@ -47,16 +47,17 @@ export default function AgendaSummary({ upcoming, awaitingResponse, confirmed }:
 }
 
 const styles = StyleSheet.create({
-  card: { marginBottom: 18 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 1.35 },
-  title: { color: "#FFFFFF", fontSize: 20, fontWeight: "900", marginTop: 4 },
-  brandMark: { width: 10, height: 10, borderRadius: 5, backgroundColor: Theme.colors.goldLight, shadowColor: Theme.colors.goldLight, shadowOpacity: 0.65, shadowRadius: 9 },
-  grid: { flexDirection: "row", gap: 9 },
-  item: { flex: 1, minWidth: 0, padding: 12, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
-  iconBox: { width: 34, height: 34, borderRadius: 11, alignItems: "center", justifyContent: "center", marginBottom: 9, backgroundColor: "rgba(246,215,106,0.09)" },
+  card: { marginBottom: 14 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  headerText: { flex: 1 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 1.25 },
+  title: { color: "#FFFFFF", fontSize: 18, fontWeight: "900", marginTop: 3 },
+  brandMark: { width: 9, height: 9, borderRadius: 5, backgroundColor: Theme.colors.goldLight, shadowColor: Theme.colors.goldLight, shadowOpacity: 0.6, shadowRadius: 8 },
+  grid: { flexDirection: "row", gap: 8 },
+  item: { flex: 1, minWidth: 0, padding: 10, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
+  iconBox: { width: 31, height: 31, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 7, backgroundColor: "rgba(246,215,106,0.09)" },
   iconPositive: { backgroundColor: "rgba(140,224,106,0.09)" },
   iconWarning: { backgroundColor: "rgba(255,120,95,0.1)" },
-  value: { color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
-  label: { color: Theme.colors.textSubtle, fontSize: 9, fontWeight: "800", marginTop: 2 },
+  value: { color: "#FFFFFF", fontSize: 20, fontWeight: "900" },
+  label: { color: "#C7C7C7", fontSize: 9, fontWeight: "800", marginTop: 2 },
 });

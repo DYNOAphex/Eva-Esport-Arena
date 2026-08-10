@@ -15,7 +15,7 @@ type ScrimDetailSheetProps = {
   type: string;
   status: string;
   dateLabel: string;
-  arrivalTime: string;
+  arrivalTime?: string;
   matchTime: string;
   arena: string;
   notes?: string;
@@ -29,7 +29,6 @@ export default function ScrimDetailSheet({
   type,
   status,
   dateLabel,
-  arrivalTime,
   matchTime,
   arena,
   notes,
@@ -60,8 +59,7 @@ export default function ScrimDetailSheet({
           </View>
 
           <View style={styles.infoGrid}>
-            <Info icon="people-outline" label="RENDEZ-VOUS" value={arrivalTime} />
-            <Info icon="time-outline" label="MATCH" value={matchTime} />
+            <Info icon="time-outline" label="HEURE DU MATCH" value={formatTime(matchTime)} />
             <Info icon="business-outline" label="ARÈNE" value={arena} />
           </View>
 
@@ -123,6 +121,10 @@ function ResponseSection({ title, items, empty }: { title: string; items: Player
   );
 }
 
+function formatTime(value: string) {
+  return value ? value.replace(":", "h") : "À confirmer";
+}
+
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.82)" },
   sheet: { maxHeight: "88%", borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28, backgroundColor: "#0D0D0D", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.14)" },
@@ -136,10 +138,10 @@ const styles = StyleSheet.create({
   statusText: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900" },
   date: { flex: 1, color: "#D7D7D7", fontSize: 12, fontWeight: "800", textAlign: "right", textTransform: "capitalize" },
   infoGrid: { flexDirection: "row", gap: 8, marginTop: 15 },
-  infoItem: { flex: 1, minWidth: 0, minHeight: 56, borderRadius: 15, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
+  infoItem: { flex: 1, minWidth: 0, minHeight: 58, borderRadius: 15, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
   infoText: { flex: 1, minWidth: 0 },
-  infoLabel: { color: "#858585", fontSize: 7, fontWeight: "900" },
-  infoValue: { color: "#F2F2F2", fontSize: 10, fontWeight: "900", marginTop: 3 },
+  infoLabel: { color: "#929292", fontSize: 7, fontWeight: "900" },
+  infoValue: { color: "#F2F2F2", fontSize: 11, fontWeight: "900", marginTop: 3 },
   counters: { flexDirection: "row", gap: 8, marginTop: 15 },
   counter: { flex: 1, minWidth: 0, paddingVertical: 12, borderRadius: 16, alignItems: "center", backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
   counterValue: { fontSize: 22, fontWeight: "900" },

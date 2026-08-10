@@ -15,6 +15,7 @@ type ScrimDetailSheetProps = {
   type: string;
   status: string;
   dateLabel: string;
+  arrivalTime?: string;
   matchTime: string;
   arena: string;
   notes?: string;

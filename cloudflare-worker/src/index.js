@@ -235,8 +235,7 @@ async function sendDiscord(webhookUrl, match, creatorEmail) {
   if (!webhookUrl) throw new Error("DISCORD_WEBHOOK_URL is not configured");
   const fields = [
     { name: "📅 Date", value: formatFrenchDate(match.date), inline: false },
-    { name: "⏰ Rendez-vous", value: match.arrivalTime || "À confirmer", inline: true },
-    { name: "🎮 Match", value: match.matchTime || "À confirmer", inline: true },
+    { name: "🎮 Heure du match", value: formatTime(match.matchTime || "À confirmer"), inline: true },
     { name: "🏟 Arène", value: match.arena || "À confirmer", inline: true },
   ];
   if (match.notes) fields.push({ name: "📝 Notes", value: match.notes, inline: false });
@@ -262,6 +261,10 @@ async function sendDiscord(webhookUrl, match, creatorEmail) {
     const body = await response.text();
     throw new Error(`Discord webhook failed (${response.status}): ${body.slice(0, 160)}`);
   }
+}
+
+function formatTime(value) {
+  return typeof value === "string" ? value.replace(":", "h") : value;
 }
 
 function formatFrenchDate(value) {

@@ -47,15 +47,18 @@ export async function addMatchToDeviceCalendar(match: Match) {
   }
 
   const endDate = new Date(startDate.getTime() + 90 * 60 * 1000);
-  const arrival = match.arrivalTime ? `Rendez-vous : ${match.arrivalTime}\n` : "";
 
   return Calendar.createEventAsync(calendarId, {
     title: `${match.type} DYNO vs ${match.opponent}`,
     startDate,
     endDate,
     location: match.arena,
-    notes: `${arrival}Début du match : ${match.matchTime}\nStatut : ${match.status}${match.notes ? `\n\n${match.notes}` : ""}`,
+    notes: `Heure du match : ${formatTime(match.matchTime)}\nStatut : ${match.status}${match.notes ? `\n\n${match.notes}` : ""}`,
     alarms: [{ relativeOffset: -30 }],
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
+}
+
+function formatTime(value: string) {
+  return value ? value.replace(":", "h") : "À confirmer";
 }

@@ -9,6 +9,8 @@ export type MatchType = "Scrim" | "Division" | "Replay / Strat";
 export type MatchArena = "Arène 1" | "Arène 2" | "Aucune";
 export type MatchStatus = "En attente" | "Confirmé" | "Annulé";
 export type Availability = "Disponible" | "Indisponible" | "En attente";
+export const MATCH_TIME_OPTIONS = ["21:20", "22:00"] as const;
+export type MatchTimeOption = (typeof MATCH_TIME_OPTIONS)[number];
 
 export type PlayerResponse = { uid?: string; player: string; status: Availability };
 export type Match = {
@@ -16,7 +18,7 @@ export type Match = {
   notes?: string; responses: PlayerResponse[]; createdAt: string; createdBy?: string;
   discordNotificationPending?: boolean; discordNotifiedAt?: string; pushNotifiedAt?: string;
 };
-export type MatchInput = Omit<Match, "id" | "createdAt" | "responses" | "createdBy" | "discordNotificationPending" | "discordNotifiedAt" | "pushNotifiedAt">;
+export type MatchInput = Omit<Match, "id" | "arrivalTime" | "createdAt" | "responses" | "createdBy" | "discordNotificationPending" | "discordNotifiedAt" | "pushNotifiedAt">;
 
 type FirestoreValue = { stringValue: string } | { booleanValue: boolean } | { arrayValue: { values?: FirestoreValue[] } } | { mapValue: { fields?: Record<string, FirestoreValue> } };
 type FirestoreDocument = { name: string; fields?: Record<string, FirestoreValue> };
@@ -30,18 +32,20 @@ let latestMatches: Match[] = [];
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let syncInProgress = false;
 
+function isAllowedMatchTime(value: string): value is MatchTimeOption { return MATCH_TIME_OPTIONS.includes(value as MatchTimeOption); }
+function assertAllowedMatchTime(value: string) { if (!isAllowedMatchTime(value)) throw new Error("Choisis une heure de match valide : 21h20 ou 22h00."); }
 function sortMatches(matches: Match[]) { return [...matches].sort((a, b) => `${a.date}T${a.matchTime}`.localeCompare(`${b.date}T${b.matchTime}`)); }
 async function persist(matches: Match[]) { latestMatches = sortMatches(matches); await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(latestMatches)); listeners.forEach((listener) => listener(latestMatches)); return latestMatches; }
 async function readStoredMatches(): Promise<Match[]> { const raw = (await AsyncStorage.getItem(STORAGE_KEY)) ?? (await AsyncStorage.getItem(LEGACY_STORAGE_KEY)); if (!raw) return []; try { return sortMatches(JSON.parse(raw) as Match[]); } catch { return []; } }
 async function requireUser() { const session = await getValidSession(); if (!session) throw new Error("Tu dois être connecté pour modifier les rendez-vous."); return session; }
-async function requireCreatePermission() { if (!(await canCreateScrim())) throw new Error("Seul un administrateur peut créer un rendez-vous."); }
-async function requireManagePermission() { if (!(await canManageScrims())) throw new Error("Seul un administrateur peut modifier ou supprimer un rendez-vous."); }
+async function requireCreatePermission() { if (!(await canCreateScrim())) throw new Error("Ton compte n'est pas autorisé à créer un rendez-vous."); }
+async function requireManagePermission() { if (!(await canManageScrims())) throw new Error("Ton compte n'est pas autorisé à modifier ou supprimer ce rendez-vous."); }
 function playerNameFromEmail(email: string) { return email.split("@")[0] || "Joueur DYNO"; }
 function stringValue(value: unknown): FirestoreValue { return { stringValue: String(value ?? "") }; }
 function responseToFirestore(response: PlayerResponse): FirestoreValue { return { mapValue: { fields: { uid: stringValue(response.uid ?? ""), player: stringValue(response.player), status: stringValue(response.status) } } }; }
 function matchToFields(match: Match): Record<string, FirestoreValue> {
   return {
-    type: stringValue(match.type), opponent: stringValue(match.opponent), date: stringValue(match.date), arrivalTime: stringValue(match.arrivalTime), matchTime: stringValue(match.matchTime), arena: stringValue(match.arena), status: stringValue(match.status), notes: stringValue(match.notes ?? ""), createdAt: stringValue(match.createdAt), createdBy: stringValue(match.createdBy ?? ""),
+    type: stringValue(match.type), opponent: stringValue(match.opponent), date: stringValue(match.date), arrivalTime: stringValue(match.matchTime), matchTime: stringValue(match.matchTime), arena: stringValue(match.arena), status: stringValue(match.status), notes: stringValue(match.notes ?? ""), createdAt: stringValue(match.createdAt), createdBy: stringValue(match.createdBy ?? ""),
     discordNotificationPending: { booleanValue: match.discordNotificationPending === true }, discordNotifiedAt: stringValue(match.discordNotifiedAt ?? ""), pushNotifiedAt: stringValue(match.pushNotifiedAt ?? ""),
     responses: { arrayValue: { values: match.responses.map(responseToFirestore) } },
   };
@@ -55,7 +59,8 @@ function documentToMatch(document: FirestoreDocument): Match {
   const rawType = readString(fields.type); const rawArena = readString(fields.arena); const status = readString(fields.status);
   const type: MatchType = rawType === "Division" ? "Division" : rawType === "Replay / Strat" ? "Replay / Strat" : "Scrim";
   const arena: MatchArena = rawArena === "Arène 2" ? "Arène 2" : rawArena === "Aucune" ? "Aucune" : "Arène 1";
-  return { id: document.name.split("/").pop() ?? `${Date.now()}`, type, opponent: readString(fields.opponent) || (type === "Replay / Strat" ? "Replay / Strat" : "Adversaire"), date: readString(fields.date), arrivalTime: readString(fields.arrivalTime) || "19:30", matchTime: readString(fields.matchTime) || "20:00", arena, status: status === "Confirmé" || status === "Annulé" ? status : "En attente", notes: readString(fields.notes), createdAt: readString(fields.createdAt) || new Date().toISOString(), createdBy: readString(fields.createdBy) || undefined, discordNotificationPending: readBoolean(fields.discordNotificationPending), discordNotifiedAt: readString(fields.discordNotifiedAt) || undefined, pushNotifiedAt: readString(fields.pushNotifiedAt) || undefined, responses };
+  const matchTime = readString(fields.matchTime) || MATCH_TIME_OPTIONS[0];
+  return { id: document.name.split("/").pop() ?? `${Date.now()}`, type, opponent: readString(fields.opponent) || (type === "Replay / Strat" ? "Replay / Strat" : "Adversaire"), date: readString(fields.date), arrivalTime: matchTime, matchTime, arena, status: status === "Confirmé" || status === "Annulé" ? status : "En attente", notes: readString(fields.notes), createdAt: readString(fields.createdAt) || new Date().toISOString(), createdBy: readString(fields.createdBy) || undefined, discordNotificationPending: readBoolean(fields.discordNotificationPending), discordNotifiedAt: readString(fields.discordNotifiedAt) || undefined, pushNotifiedAt: readString(fields.pushNotifiedAt) || undefined, responses };
 }
 async function firestoreRequest(url: string, init: RequestInit = {}) { const session = await requireUser(); return fetch(url, { ...init, headers: { Authorization: `Bearer ${session.idToken}`, "Content-Type": "application/json", ...(init.headers ?? {}) } }); }
 async function fetchCloudMatches() { const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`); if (!response.ok) throw new Error("Synchronisation Firebase impossible."); const data = (await response.json()) as { documents?: FirestoreDocument[] }; return sortMatches((data.documents ?? []).map(documentToMatch)); }
@@ -74,7 +79,7 @@ async function notifyDiscordImmediately(match: Match, idToken: string) {
   const response = await fetch(DISCORD_WORKER_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ type: match.type, opponent: match.opponent, date: match.date, arrivalTime: match.arrivalTime, matchTime: match.matchTime, arena: match.arena, notes: match.notes ?? "" }),
+    body: JSON.stringify({ type: match.type, opponent: match.opponent, date: match.date, matchTime: match.matchTime, arena: match.arena, notes: match.notes ?? "" }),
   });
   if (!response.ok) throw new Error(`Notification Discord immédiate impossible (${response.status}).`);
 }
@@ -90,9 +95,10 @@ export async function getMatches() { const local = await readStoredMatches(); la
 export async function getMatch(matchId: string) { const matches = await fetchCloudMatches().catch(readStoredMatches); return matches.find((match) => match.id === matchId) ?? null; }
 export async function createMatch(input: MatchInput) {
   await requireCreatePermission();
+  assertAllowedMatchTime(input.matchTime);
   const user = await requireUser();
   const matches = await readStoredMatches();
-  let match: Match = { ...input, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), createdBy: user.localId, discordNotificationPending: true, responses: [] };
+  let match: Match = { ...input, arrivalTime: input.matchTime, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), createdBy: user.localId, discordNotificationPending: true, responses: [] };
   await uploadMatch(match);
   await persist([...matches, match]);
   try {
@@ -105,8 +111,25 @@ export async function createMatch(input: MatchInput) {
   }
   return match;
 }
-export async function updateMatch(matchId: string, patch: Partial<MatchInput>) { await requireManagePermission(); await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const current = matches.find((match) => match.id === matchId); if (!current) throw new Error("Ce rendez-vous n'existe plus."); const changed: Match = { ...current, ...patch, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy, discordNotificationPending: current.discordNotificationPending, discordNotifiedAt: current.discordNotifiedAt, pushNotifiedAt: current.pushNotifiedAt }; await uploadMatch(changed); await persist(matches.map((match) => match.id === matchId ? changed : match)); return changed; }
-export async function duplicateMatch(matchId: string) { await requireCreatePermission(); const original = await getMatch(matchId); if (!original) throw new Error("Ce rendez-vous n'existe plus."); return createMatch({ type: original.type, opponent: original.opponent, date: original.date, arrivalTime: original.arrivalTime, matchTime: original.matchTime, arena: original.arena, status: "En attente", notes: original.notes }); }
+export async function updateMatch(matchId: string, patch: Partial<MatchInput>) {
+  await requireManagePermission();
+  await requireUser();
+  if (patch.matchTime !== undefined) assertAllowedMatchTime(patch.matchTime);
+  const matches = await fetchCloudMatches().catch(readStoredMatches);
+  const current = matches.find((match) => match.id === matchId);
+  if (!current) throw new Error("Ce rendez-vous n'existe plus.");
+  const changed: Match = { ...current, ...patch, arrivalTime: patch.matchTime ?? current.matchTime, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy, discordNotificationPending: current.discordNotificationPending, discordNotifiedAt: current.discordNotifiedAt, pushNotifiedAt: current.pushNotifiedAt };
+  await uploadMatch(changed);
+  await persist(matches.map((match) => match.id === matchId ? changed : match));
+  return changed;
+}
+export async function duplicateMatch(matchId: string) {
+  await requireCreatePermission();
+  const original = await getMatch(matchId);
+  if (!original) throw new Error("Ce rendez-vous n'existe plus.");
+  const matchTime = isAllowedMatchTime(original.matchTime) ? original.matchTime : MATCH_TIME_OPTIONS[0];
+  return createMatch({ type: original.type, opponent: original.opponent, date: original.date, matchTime, arena: original.arena, status: "En attente", notes: original.notes });
+}
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {
   const user = await requireUser();
   const linkedPlayer = await getRosterPlayerForAccount(user.localId, user.email).catch(() => null);

@@ -72,10 +72,10 @@ export async function registerForPushNotificationsAsync() {
   }
 }
 
-export async function notifyMatchCreated({ type, opponent, date, arrivalTime, matchTime, arena }: { type: string; opponent: string; date: string; arrivalTime: string; matchTime: string; arena: string }) {
+export async function notifyMatchCreated({ type, opponent, date, matchTime, arena }: { type: string; opponent: string; date: string; matchTime: string; arena: string }) {
   if (!(await getAppSettings()).notificationsEnabled) return null;
   const title = `🟡 Nouveau ${type.toLowerCase()} DYNO`;
-  const body = `VS ${opponent} • ${formatDate(date)} • RDV ${arrivalTime} • Match ${matchTime} • ${arena}`;
+  const body = `VS ${opponent} • ${formatDate(date)} • Match ${formatTime(matchTime)} • ${arena}`;
   if (Platform.OS === "web") {
     await registerWebPushSubscription().catch(() => null);
     if (!(await requestNotificationPermission())) return null;
@@ -103,3 +103,4 @@ export async function scheduleMatchNotification({ opponent, matchDate }: { oppon
 }
 
 function formatDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }); }
+function formatTime(value: string) { return value ? value.replace(":", "h") : "?"; }

@@ -12,6 +12,7 @@ type AgendaMatchCardProps = {
   status: string;
   countdown: string;
   opponent: string;
+  arrivalTime?: string;
   matchTime: string;
   arena: string;
   available: number;

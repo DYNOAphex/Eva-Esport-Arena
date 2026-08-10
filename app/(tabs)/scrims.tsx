@@ -1,7 +1,7 @@
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import { createElement, useEffect, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { createElement, useCallback, useState } from "react";
 import { Alert, ImageBackground, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 import ScrimFormSummary from "../../components/dyno/ScrimFormSummary";
@@ -31,22 +31,34 @@ export default function ScrimsScreen() {
   const [notes, setNotes] = useState("");
   const isReplay = type === "Replay / Strat";
 
-  useEffect(() => {
-    void getScrimPermissions().then(async (permissions) => {
-      const allowed = editId ? permissions.canManage : permissions.canCreate;
-      setAuthorized(allowed);
-      if (!allowed) {
-        Alert.alert("Accès refusé", "Ton compte n'est pas autorisé à gérer ce rendez-vous.", [{ text: "Retour", onPress: () => router.replace("/(tabs)/planning") }]);
-        return;
-      }
-      if (editId) {
-        const match = await getMatch(editId);
-        if (!match) return;
-        setType(match.type); setOpponent(match.opponent); setDate(match.date); setArrivalTime(match.arrivalTime); setMatchTime(match.matchTime);
-        setArena(match.arena); setStatus(match.status); setNotes(match.notes ?? "");
-      }
-    });
-  }, [editId]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setAuthorized(null);
+
+      void getScrimPermissions().then(async (permissions) => {
+        if (!active) return;
+        const allowed = editId ? permissions.canManage : permissions.canCreate;
+        setAuthorized(allowed);
+        if (!allowed) {
+          Alert.alert(
+            "Accès refusé",
+            "Ton compte n'a pas encore le droit de créer ou gérer ce rendez-vous. Les droits viennent d'être revérifiés.",
+            [{ text: "Retour", onPress: () => router.replace("/(tabs)/planning") }],
+          );
+          return;
+        }
+        if (editId) {
+          const match = await getMatch(editId);
+          if (!active || !match) return;
+          setType(match.type); setOpponent(match.opponent); setDate(match.date); setArrivalTime(match.arrivalTime); setMatchTime(match.matchTime);
+          setArena(match.arena); setStatus(match.status); setNotes(match.notes ?? "");
+        }
+      });
+
+      return () => { active = false; };
+    }, [editId]),
+  );
 
   function chooseType(value: MatchType) {
     setType(value);

@@ -7,16 +7,15 @@ import { Alert, ImageBackground, Platform, SafeAreaView, ScrollView, StyleSheet,
 import ScrimFormSummary from "../../components/dyno/ScrimFormSummary";
 import { Theme } from "../../constants/theme";
 import { getScrimPermissions } from "../../services/accessControl";
-import { createMatch, getMatch, updateMatch } from "../../services/matchStore";
+import { createMatch, getMatch, MATCH_TIME_OPTIONS, updateMatch } from "../../services/matchStore";
 import { notifyMatchCreated, requestNotificationPermission, scheduleMatchNotification } from "../../services/notifications";
-import type { MatchArena, MatchStatus, MatchType } from "../../services/matchStore";
+import type { MatchArena, MatchStatus, MatchTimeOption, MatchType } from "../../services/matchStore";
 
 const marbleSource = require("../../assets/images/background-marble.jpg");
 const arenas: MatchArena[] = ["Arène 1", "Arène 2"];
 const statuses: MatchStatus[] = ["En attente", "Confirmé", "Annulé"];
 const appointmentTypes: MatchType[] = ["Scrim", "Replay / Strat"];
-const matchTimes = ["21:20", "22:00"] as const;
-type MatchTime = (typeof matchTimes)[number];
+const matchTimes = MATCH_TIME_OPTIONS;
 
 export default function ScrimsScreen() {
   const params = useLocalSearchParams<{ editId?: string }>();
@@ -26,14 +25,14 @@ export default function ScrimsScreen() {
   const [type, setType] = useState<MatchType>("Scrim");
   const [opponent, setOpponent] = useState("");
   const [date, setDate] = useState("");
-  const [matchTime, setMatchTime] = useState<string>("21:20");
+  const [matchTime, setMatchTime] = useState<string>(MATCH_TIME_OPTIONS[0]);
   const [arena, setArena] = useState<MatchArena>("Arène 1");
   const [status, setStatus] = useState<MatchStatus>("En attente");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState("");
   const isReplay = type === "Replay / Strat";
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
-  const validMatchTime = matchTimes.includes(matchTime as MatchTime);
+  const validMatchTime = matchTimes.includes(matchTime as MatchTimeOption);
   const missingOpponent = !opponent.trim() && !isReplay;
 
   useFocusEffect(
@@ -105,13 +104,10 @@ export default function ScrimsScreen() {
       if (!editId && Platform.OS === "web") await requestNotificationPermission().catch(() => false);
       setSaving(true);
 
-      // Conservé uniquement pour la compatibilité avec les anciens documents Firestore.
-      // L'heure de rendez-vous n'est plus demandée ni affichée dans DYNO.
       const input = {
         type,
         opponent: title,
         date,
-        arrivalTime: matchTime,
         matchTime,
         arena: isReplay ? "Aucune" as const : arena,
         status,

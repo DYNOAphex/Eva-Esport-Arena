@@ -108,7 +108,7 @@ export default function PlanningScreen() {
       message: [
         `⚔️ DYNO vs ${match.opponent}`,
         `📅 ${formatDate(match.date)}`,
-        `🕒 Rendez-vous ${match.arrivalTime} • Match ${match.matchTime}`,
+        `🎮 Heure du match : ${formatMatchTime(match.matchTime)}`,
         `📍 ${match.arena}`,
         `✅ ${summary.available} disponible(s) • ❌ ${summary.unavailable} indisponible(s)`,
         summary.pendingPlayers.length ? `⏳ Sans réponse : ${summary.pendingPlayers.map((player) => player.nickname).join(", ")}` : "✅ Tout le monde a répondu",
@@ -128,7 +128,7 @@ export default function PlanningScreen() {
         const pad = (value: number) => String(value).padStart(2, "0");
         const toUtc = (value: Date) => `${value.getUTCFullYear()}${pad(value.getUTCMonth() + 1)}${pad(value.getUTCDate())}T${pad(value.getUTCHours())}${pad(value.getUTCMinutes())}${pad(value.getUTCSeconds())}Z`;
         const escape = (value: string) => value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
-        const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//DYNO//Esport Manager//FR", "CALSCALE:GREGORIAN", "BEGIN:VEVENT", `UID:${match.id}@dyno-esport`, `DTSTAMP:${toUtc(new Date())}`, `DTSTART:${toUtc(startDate)}`, `DTEND:${toUtc(endDate)}`, `SUMMARY:${escape(`DYNO vs ${match.opponent}`)}`, `LOCATION:${escape(match.arena)}`, `DESCRIPTION:${escape([`Type : ${match.type}`, `Rendez-vous : ${match.arrivalTime}`, match.notes ?? ""].filter(Boolean).join("\n"))}`, "BEGIN:VALARM", "TRIGGER:-PT30M", "ACTION:DISPLAY", "DESCRIPTION:Rappel match DYNO", "END:VALARM", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+        const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//DYNO//Esport Manager//FR", "CALSCALE:GREGORIAN", "BEGIN:VEVENT", `UID:${match.id}@dyno-esport`, `DTSTAMP:${toUtc(new Date())}`, `DTSTART:${toUtc(startDate)}`, `DTEND:${toUtc(endDate)}`, `SUMMARY:${escape(`DYNO vs ${match.opponent}`)}`, `LOCATION:${escape(match.arena)}`, `DESCRIPTION:${escape([`Type : ${match.type}`, `Heure du match : ${formatMatchTime(match.matchTime)}`, match.notes ?? ""].filter(Boolean).join("\n"))}`, "BEGIN:VALARM", "TRIGGER:-PT30M", "ACTION:DISPLAY", "DESCRIPTION:Rappel match DYNO", "END:VALARM", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
         const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -144,7 +144,7 @@ export default function PlanningScreen() {
 
       const permission = await Calendar.requestCalendarPermissionsAsync();
       if (permission.status !== "granted") return Alert.alert("Calendrier", "Autorise DYNO à accéder au calendrier dans les réglages du téléphone.");
-      await Calendar.createEventInCalendarAsync({ title: `DYNO vs ${match.opponent}`, startDate, endDate, location: match.arena, notes: [`Type : ${match.type}`, `Rendez-vous : ${match.arrivalTime}`, match.notes].filter(Boolean).join("\n"), alarms: [{ relativeOffset: -30 }], timeZone: "Europe/Paris" });
+      await Calendar.createEventInCalendarAsync({ title: `DYNO vs ${match.opponent}`, startDate, endDate, location: match.arena, notes: [`Type : ${match.type}`, `Heure du match : ${formatMatchTime(match.matchTime)}`, match.notes].filter(Boolean).join("\n"), alarms: [{ relativeOffset: -30 }], timeZone: "Europe/Paris" });
     } catch {
       Alert.alert("Calendrier", "Impossible d'ajouter ce match au calendrier.");
     }
@@ -231,7 +231,6 @@ export default function PlanningScreen() {
                 status={displayStatus}
                 countdown={countdownLabel(timestamp, match.status)}
                 opponent={match.opponent}
-                arrivalTime={match.arrivalTime}
                 matchTime={match.matchTime}
                 arena={match.arena}
                 available={summary.available}
@@ -291,7 +290,6 @@ export default function PlanningScreen() {
         type={details?.type ?? "Scrim"}
         status={details ? (matchTimestamp(details) < Date.now() && details.status !== "Annulé" ? "Terminé" : details.status) : "En attente"}
         dateLabel={details ? formatDate(details.date) : ""}
-        arrivalTime={details?.arrivalTime ?? "--:--"}
         matchTime={details?.matchTime ?? "--:--"}
         arena={details?.arena ?? "Aucune"}
         notes={details?.notes}
@@ -315,6 +313,7 @@ function countdownLabel(timestamp: number, status: Match["status"]) { if (status
 function getDay(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? "--" : date.getDate().toString().padStart(2, "0"); }
 function getMonth(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? "---" : date.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "").toUpperCase(); }
 function formatDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }); }
+function formatMatchTime(value: string) { return value ? value.replace(":", "h") : "À confirmer"; }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#050505" },

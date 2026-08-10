@@ -184,7 +184,7 @@ export default function DashboardScreen() {
               <View style={styles.goldHairline} />
               <View style={styles.heroTop}><View style={styles.dateBadge}><Text style={styles.dateMonth}>{dateParts.month}</Text><Text style={styles.dateDay}>{dateParts.day}</Text></View><View style={styles.heroText}><Text style={styles.eyebrow}>{`PROCHAIN ${nextMatch.type.toUpperCase()}`}</Text><Text style={styles.confirmedSmall}>{nextMatch.status.toUpperCase()}</Text></View></View>
               <View style={styles.versusRow}><Text style={styles.teamName}>DYNO</Text><Text style={styles.vs}>VS</Text><Text style={styles.teamName}>{nextMatch.opponent.toUpperCase()}</Text></View>
-              <View style={styles.metaRow}><Meta icon="time-outline" value={formatTime(nextMatch.arrivalTime)} label="Lobby" /><Meta icon="locate-outline" value={formatTime(nextMatch.matchTime)} label="Début du match" /><Meta icon="business-outline" value={nextMatch.arena ?? "--"} label={`Mode : ${nextMatch.type}`} /></View>
+              <View style={styles.metaRow}><Meta icon="time-outline" value={formatTime(nextMatch.matchTime)} label="Heure du match" /><Meta icon="business-outline" value={nextMatch.arena ?? "--"} label="Arène" /><Meta icon="game-controller-outline" value={nextMatch.type} label="Type" /></View>
               <View style={styles.confirmButton}><Ionicons name={nextMatch.status === "Confirmé" ? "checkmark" : "hourglass-outline"} size={24} color="#92DD54" /><Text style={styles.confirmText}>{nextMatch.status}</Text></View>
             </View>
           ) : (

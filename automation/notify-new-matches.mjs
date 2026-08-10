@@ -80,21 +80,21 @@ function shouldNotify(match, field) {
 }
 async function sendExpoPushNotifications(match, tokens) {
   const title = `🟡 Nouveau ${stringOr(match.type, "match").toLowerCase()} DYNO`;
-  const body = `VS ${stringOr(match.opponent, "Adversaire")} • ${shortDate(match.date)} • RDV ${stringOr(match.arrivalTime, "?")} • Match ${stringOr(match.matchTime, "?")} • ${stringOr(match.arena, "")}`;
+  const body = `VS ${stringOr(match.opponent, "Adversaire")} • ${shortDate(match.date)} • Match ${formatTime(match.matchTime)} • ${stringOr(match.arena, "")}`;
   const response = await fetch("https://exp.host/--/api/v2/push/send", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(tokens.map((to) => ({ to, title, body, sound: "default", channelId: "matches", priority: "high" }))) });
   if (!response.ok) throw new Error(`Expo push failed (${response.status})`);
 }
 async function sendDiscordNotification(match) {
   const fields = [
     { name: "📅 Date", value: longDate(match.date), inline: false },
-    { name: "⏰ Rendez-vous", value: stringOr(match.arrivalTime, "À confirmer"), inline: true },
-    { name: "🎮 Match", value: stringOr(match.matchTime, "À confirmer"), inline: true },
+    { name: "🎮 Heure du match", value: formatTime(match.matchTime), inline: true },
     { name: "🏟 Arène", value: stringOr(match.arena, "À confirmer"), inline: true },
   ];
   const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "DYNO Esport Manager", embeds: [{ title: `🏆 Nouveau ${stringOr(match.type, "match").toLowerCase()} DYNO`, description: `**DYNO 🆚 ${stringOr(match.opponent, "Adversaire")}**`, color: 13938487, fields }] }) });
   if (!response.ok) throw new Error(`Discord webhook failed (${response.status})`);
 }
 function stringOr(value, fallback) { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
+function formatTime(value) { return stringOr(value, "À confirmer").replace(":", "h"); }
 function dateValue(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime(); }
 function todayInParis() { return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Paris" }).format(new Date()); }
 function shortDate(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", timeZone: "Europe/Paris" }).format(date); }

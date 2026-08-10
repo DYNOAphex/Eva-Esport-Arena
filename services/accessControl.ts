@@ -19,7 +19,11 @@ export async function getScrimPermissions(): Promise<ScrimPermissions> {
 
   try {
     const response = await fetch(`${ACCESS_BASE}/${encodeURIComponent(session.localId)}`, {
-      headers: { Authorization: `Bearer ${session.idToken}` },
+      headers: {
+        Authorization: `Bearer ${session.idToken}`,
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        Pragma: "no-cache",
+      },
     });
     if (!response.ok) return { canCreate: false, canManage: false };
     const document = (await response.json()) as {

@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Updates from "expo-updates";
-import { Tabs } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
-import { Alert, Platform, StyleSheet, View } from "react-native";
+import { Tabs, usePathname } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, AppState, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Theme } from "../../constants/theme";
@@ -44,12 +44,29 @@ function NavIcon({
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
   const [allowedToCreate, setAllowedToCreate] = useState(false);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [matches, setMatches] = useState<Match[]>([]);
 
+  const refreshCreateAccess = useCallback(() => {
+    void canCreateScrim()
+      .then(setAllowedToCreate)
+      .catch(() => setAllowedToCreate(false));
+  }, []);
+
   useEffect(() => {
-    void canCreateScrim().then(setAllowedToCreate);
+    refreshCreateAccess();
+  }, [pathname, refreshCreateAccess]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshCreateAccess();
+    });
+    return () => subscription.remove();
+  }, [refreshCreateAccess]);
+
+  useEffect(() => {
     void getStoredSession().then(setSession);
     void getMatches().then(setMatches);
 

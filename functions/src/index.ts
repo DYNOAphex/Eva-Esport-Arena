@@ -11,7 +11,6 @@ type MatchDocument = {
   type?: string;
   opponent?: string;
   date?: string;
-  arrivalTime?: string;
   matchTime?: string;
   arena?: string;
   notes?: string;
@@ -38,7 +37,6 @@ export const notifyNewMatch = onDocumentCreated(
       type: currentData.type || "Match",
       opponent: currentData.opponent || "Adversaire",
       date: currentData.date || "Date à confirmer",
-      arrivalTime: currentData.arrivalTime || "À confirmer",
       matchTime: currentData.matchTime || "À confirmer",
       arena: currentData.arena || "Arène à confirmer",
       notes: currentData.notes || "",
@@ -61,15 +59,13 @@ async function sendDiscordNotification(match: {
   type: string;
   opponent: string;
   date: string;
-  arrivalTime: string;
   matchTime: string;
   arena: string;
   notes: string;
 }) {
   const fields = [
     { name: "📅 Date", value: formatFrenchDate(match.date), inline: false },
-    { name: "⏰ Rendez-vous", value: match.arrivalTime, inline: true },
-    { name: "🎮 Match", value: match.matchTime, inline: true },
+    { name: "🎮 Heure du match", value: formatTime(match.matchTime), inline: true },
     { name: "🏟 Arène", value: match.arena, inline: true },
   ];
 
@@ -102,6 +98,10 @@ async function sendDiscordNotification(match: {
     const responseBody = await response.text();
     throw new Error(`Discord webhook failed (${response.status}): ${responseBody.slice(0, 200)}`);
   }
+}
+
+function formatTime(value: string) {
+  return value ? value.replace(":", "h") : "À confirmer";
 }
 
 function formatFrenchDate(value: string) {

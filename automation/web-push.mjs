@@ -23,7 +23,7 @@ export async function sendWebPushNotifications(match, items) {
   if (!configured) return 0;
   const payload = JSON.stringify({
     title: `🟡 Nouveau ${(match.type || "match").toLowerCase()} DYNO`,
-    body: `VS ${match.opponent || "Adversaire"} • ${shortDate(match.date)} • RDV ${match.arrivalTime || "?"} • Match ${match.matchTime || "?"} • ${match.arena || ""}`,
+    body: `VS ${match.opponent || "Adversaire"} • ${shortDate(match.date)} • Match ${formatTime(match.matchTime)} • ${match.arena || ""}`,
     tag: `dyno-${match.date || "match"}-${match.opponent || ""}`,
     url: "/Eva-Esport-Arena/",
   });
@@ -43,4 +43,8 @@ export async function sendWebPushNotifications(match, items) {
 function shortDate(value) {
   const date = new Date(`${value}T12:00:00`);
   return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", timeZone: "Europe/Paris" }).format(date);
+}
+
+function formatTime(value) {
+  return typeof value === "string" && value.trim() ? value.trim().replace(":", "h") : "?";
 }

@@ -12,7 +12,7 @@ type AgendaMatchCardProps = {
   status: string;
   countdown: string;
   opponent: string;
-  arrivalTime: string;
+  arrivalTime?: string;
   matchTime: string;
   arena: string;
   available: number;
@@ -31,7 +31,6 @@ export default function AgendaMatchCard({
   status,
   countdown,
   opponent,
-  arrivalTime,
   matchTime,
   arena,
   available,
@@ -79,8 +78,7 @@ export default function AgendaMatchCard({
       </View>
 
       <View style={styles.infoRow}>
-        <Info icon="people-outline" label="RDV" value={arrivalTime} />
-        <Info icon="time-outline" label="MATCH" value={matchTime} />
+        <Info icon="time-outline" label="HEURE DU MATCH" value={formatTime(matchTime)} />
         <Info icon="business-outline" label="ARÈNE" value={arena} />
       </View>
 
@@ -107,13 +105,17 @@ export default function AgendaMatchCard({
 function Info({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
   return (
     <View style={styles.infoItem}>
-      <Ionicons name={icon} size={16} color={Theme.colors.goldLight} />
+      <Ionicons name={icon} size={17} color={Theme.colors.goldLight} />
       <View style={styles.infoText}>
         <Text style={styles.infoLabel}>{label}</Text>
         <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
       </View>
     </View>
   );
+}
+
+function formatTime(value: string) {
+  return value ? value.replace(":", "h") : "--h--";
 }
 
 const styles = StyleSheet.create({
@@ -138,11 +140,11 @@ const styles = StyleSheet.create({
   dyno: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
   vs: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900" },
   opponent: { flex: 1, color: "#FFFFFF", fontSize: 22, fontWeight: "900" },
-  infoRow: { flexDirection: "row", gap: 7, marginTop: 13 },
-  infoItem: { flex: 1, minWidth: 0, minHeight: 50, borderRadius: 14, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
+  infoRow: { flexDirection: "row", gap: 8, marginTop: 13 },
+  infoItem: { flex: 1, minWidth: 0, minHeight: 54, borderRadius: 14, paddingHorizontal: 11, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
   infoText: { flex: 1, minWidth: 0 },
-  infoLabel: { color: "#858585", fontSize: 7, fontWeight: "900" },
-  infoValue: { color: "#F2F2F2", fontSize: 10, fontWeight: "900", marginTop: 2 },
+  infoLabel: { color: "#929292", fontSize: 7, fontWeight: "900" },
+  infoValue: { color: "#F2F2F2", fontSize: 11, fontWeight: "900", marginTop: 2 },
   progressCard: { marginTop: 13, padding: 12, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
   progressHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   progressTitle: { color: "#F2F2F2", fontSize: 11, fontWeight: "900" },

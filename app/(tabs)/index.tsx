@@ -15,6 +15,10 @@ const logoSource = require("../../assets/images/logo-dyno.png");
 const marbleSource = require("../../assets/images/background-marble.jpg");
 
 function formatTime(value?: string) { return value ? value.replace(":", "h") : "--h--"; }
+function formatTimeOptions(first?: string, second?: string) {
+  if (!first) return "--h--";
+  return second ? `${formatTime(first)} / ${formatTime(second)}` : formatTime(first);
+}
 function formatDateLabel(value?: string) {
   if (!value) return undefined;
   const date = new Date(`${value}T12:00:00`);
@@ -167,7 +171,7 @@ export default function DashboardScreen() {
           <DashboardCommandCenter
             opponent={nextMatch?.opponent}
             dateLabel={formatDateLabel(nextMatch?.date)}
-            matchTime={nextMatch?.matchTime ? formatTime(nextMatch.matchTime) : undefined}
+            matchTime={nextMatch?.matchTime ? formatTimeOptions(nextMatch.matchTime, nextMatch.matchTimeAlt) : undefined}
             arena={nextMatch?.arena}
             available={availableCount}
             pending={pendingCount}
@@ -185,7 +189,7 @@ export default function DashboardScreen() {
               <View style={styles.heroTop}><View style={styles.dateBadge}><Text style={styles.dateMonth}>{dateParts.month}</Text><Text style={styles.dateDay}>{dateParts.day}</Text></View><View style={styles.heroText}><Text style={styles.eyebrow}>{`PROCHAIN ${nextMatch.type.toUpperCase()}`}</Text><Text style={styles.confirmedSmall}>{nextMatch.status.toUpperCase()}</Text></View></View>
               <View style={styles.versusRow}><Text style={styles.teamName}>DYNO</Text><Text style={styles.vs}>VS</Text><Text style={styles.teamName}>{nextMatch.opponent.toUpperCase()}</Text></View>
               <View style={styles.metaRow}>
-                <Meta icon="time-outline" value={formatTime(nextMatch.matchTime)} label="Heure du match" />
+                <Meta icon="time-outline" value={formatTimeOptions(nextMatch.matchTime, nextMatch.matchTimeAlt)} label="Horaires possibles" />
                 <Meta icon="business-outline" value={nextMatch.arena ?? "--"} label={`Mode : ${nextMatch.type}`} />
               </View>
               <View style={styles.confirmButton}><Ionicons name={nextMatch.status === "Confirmé" ? "checkmark" : "hourglass-outline"} size={24} color="#92DD54" /><Text style={styles.confirmText}>{nextMatch.status}</Text></View>

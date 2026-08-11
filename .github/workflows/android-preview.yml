@@ -138,15 +138,22 @@ jobs:
       - name: Publish direct APK download in GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: dyno-preview
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" DYNO-Esport-Manager.apk --clobber
+          set -euo pipefail
+
+          echo "Publication de $RELEASE_TAG dans $GH_REPO"
+
+          if gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" DYNO-Esport-Manager.apk --clobber --repo "$GH_REPO"
             gh release edit "$RELEASE_TAG" \
+              --repo "$GH_REPO" \
               --title "DYNO Esport Manager - Dernière APK" \
               --notes "APK Android signée la plus récente générée depuis main.\n\nCommit : $GITHUB_SHA\nBuild GitHub Actions : #$GITHUB_RUN_NUMBER"
           else
             gh release create "$RELEASE_TAG" DYNO-Esport-Manager.apk \
+              --repo "$GH_REPO" \
               --target "$GITHUB_SHA" \
               --title "DYNO Esport Manager - Dernière APK" \
               --notes "APK Android signée la plus récente générée depuis main.\n\nCommit : $GITHUB_SHA\nBuild GitHub Actions : #$GITHUB_RUN_NUMBER" \

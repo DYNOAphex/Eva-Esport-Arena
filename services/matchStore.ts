@@ -95,13 +95,19 @@ export async function createMatch(input: MatchInput) {
   let match: Match = { ...input, id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, createdAt: new Date().toISOString(), createdBy: user.localId, discordNotificationPending: true, responses: [] };
   await uploadMatch(match);
   await persist([...matches, match]);
-  try {
-    await notifyDiscordImmediately(match, user.idToken);
-    match = { ...match, discordNotificationPending: false, discordNotifiedAt: new Date().toISOString() };
-    await uploadMatch(match);
-    await persist([...matches, match]);
-  } catch {
-    // GitHub Actions will retry any appointment still marked as pending.
+
+  // Le worker Cloudflare déployé peut avoir une version plus ancienne du format d'annonce.
+  // Pour les rendez-vous à deux horaires, le workflow GitHub lit directement Firestore et publie
+  // l'annonce complète sans perdre le second créneau.
+  if (!match.matchTimeAlt) {
+    try {
+      await notifyDiscordImmediately(match, user.idToken);
+      match = { ...match, discordNotificationPending: false, discordNotifiedAt: new Date().toISOString() };
+      await uploadMatch(match);
+      await persist([...matches, match]);
+    } catch {
+      // GitHub Actions will retry any appointment still marked as pending.
+    }
   }
   return match;
 }

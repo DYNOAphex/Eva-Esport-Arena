@@ -33,16 +33,20 @@ export default function DashboardCommandCenter({
 }: DashboardCommandCenterProps) {
   const hasMatch = Boolean(opponent);
   const healthy = firebaseReady && notificationsReady;
+  const ready = hasMatch && pending === 0 && available > 0;
 
   return (
     <GlassCard style={styles.card} strong>
       <View style={styles.header}>
         <View style={[styles.iconBox, hasMatch && styles.iconBoxActive]}>
-          <Ionicons name={hasMatch ? "flash" : "calendar-outline"} size={20} color={Theme.colors.goldLight} />
+          <Ionicons name={hasMatch ? "trophy-outline" : "flash-outline"} size={20} color={Theme.colors.goldLight} />
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.kicker}>{hasMatch ? "PROCHAIN SCRIM" : "CENTRE DE COMMANDE"}</Text>
-          <Text style={styles.title} numberOfLines={2}>{hasMatch ? `DYNO vs ${opponent}` : "Ton équipe est prête"}</Text>
+          <View style={styles.kickerRow}>
+            <Text style={styles.kicker}>{hasMatch ? "MATCH CENTER" : "CENTRE DE COMMANDE"}</Text>
+            {hasMatch ? <View style={[styles.statusPill, ready ? styles.statusPillReady : styles.statusPillPending]}><View style={[styles.statusDot, ready ? styles.statusDotReady : styles.statusDotPending]} /><Text style={styles.statusText}>{ready ? "PRÊTE" : "EN PRÉPARATION"}</Text></View> : null}
+          </View>
+          <Text style={styles.title} numberOfLines={2}>{hasMatch ? `DYNO  VS  ${opponent}` : "Ton équipe est prête"}</Text>
           {hasMatch ? (
             <View style={styles.metaRow}>
               {dateLabel ? <Meta icon="calendar-outline" value={dateLabel} /> : null}
@@ -51,17 +55,29 @@ export default function DashboardCommandCenter({
             </View>
           ) : <Text style={styles.meta}>Aucun scrim planifié pour le moment</Text>}
         </View>
-        <View style={[styles.healthDot, healthy && styles.healthDotReady]} />
       </View>
+
+      {hasMatch ? (
+        <View style={styles.readinessBanner}>
+          <View style={styles.readinessMain}>
+            <Ionicons name={ready ? "checkmark-circle" : "people-outline"} size={22} color={ready ? "#83DD57" : "#FFCB6B"} />
+            <View style={styles.readinessCopy}>
+              <Text style={styles.readinessTitle}>{ready ? "ÉQUIPE PRÊTE" : "COMPOSITION EN PRÉPARATION"}</Text>
+              <Text style={styles.readinessSubtitle}>{ready ? "Tous les joueurs attendus ont répondu." : `${pending} joueur${pending > 1 ? "s" : ""} en attente de réponse.`}</Text>
+            </View>
+          </View>
+          <Text style={styles.readinessRatio}>{available} dispo.</Text>
+        </View>
+      ) : null}
 
       <View style={styles.metricsRow}>
         <Metric value={available} label="Disponibles" positive />
         <View style={styles.metricSeparator} />
         <Metric value={pending} label="Sans réponse" warning={pending > 0} />
         <View style={styles.metricSeparator} />
-        <View style={styles.readiness}>
-          <Ionicons name={pending === 0 && available > 0 ? "checkmark-circle" : "people-outline"} size={20} color={pending === 0 && available > 0 ? "#83DD57" : "#BEBEBE"} />
-          <Text style={styles.readinessLabel}>{pending === 0 && available > 0 ? "PRÊTE" : "EN COURS"}</Text>
+        <View style={styles.metric}>
+          <Ionicons name={ready ? "checkmark-done" : "hourglass-outline"} size={20} color={ready ? "#83DD57" : "#BEBEBE"} />
+          <Text style={[styles.metricLabel, ready && styles.metricLabelReady]}>{ready ? "VALIDÉ" : "À SUIVRE"}</Text>
         </View>
       </View>
 
@@ -74,7 +90,7 @@ export default function DashboardCommandCenter({
 
       <View style={styles.actions}>
         <Action icon="calendar-outline" label="Agenda" onPress={onOpenAgenda} />
-        <Action icon="add" label="Créer" primary onPress={onCreateScrim} />
+        <Action icon="add" label="Nouveau scrim" primary onPress={onCreateScrim} />
         <Action icon="people-outline" label="Équipe" onPress={onOpenTeam} />
       </View>
     </GlassCard>
@@ -103,39 +119,50 @@ function Action({ icon, label, primary = false, onPress }: { icon: keyof typeof 
   return (
     <TouchableOpacity accessibilityRole="button" style={[styles.action, primary && styles.actionPrimary]} onPress={onPress} activeOpacity={0.82}>
       <Ionicons name={icon} size={17} color={primary ? "#080808" : Theme.colors.goldLight} />
-      <Text style={[styles.actionText, primary && styles.actionTextPrimary]}>{label}</Text>
+      <Text style={[styles.actionText, primary && styles.actionTextPrimary]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: { marginBottom: 14 },
-  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  header: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   iconBox: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,215,106,0.07)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.15)" },
   iconBoxActive: { backgroundColor: "rgba(246,215,106,0.14)", borderColor: "rgba(246,215,106,0.34)" },
   headerText: { flex: 1, minWidth: 0 },
+  kickerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 7 },
   kicker: { color: Theme.colors.goldLight, fontSize: 8, fontWeight: "900", letterSpacing: 1.25 },
-  title: { color: "#FFFFFF", fontSize: 16, lineHeight: 20, fontWeight: "900", marginTop: 3 },
+  statusPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth },
+  statusPillReady: { backgroundColor: "rgba(131,221,87,0.10)", borderColor: "rgba(131,221,87,0.28)" },
+  statusPillPending: { backgroundColor: "rgba(255,203,107,0.08)", borderColor: "rgba(255,203,107,0.22)" },
+  statusDot: { width: 5, height: 5, borderRadius: 99 },
+  statusDotReady: { backgroundColor: "#83DD57" },
+  statusDotPending: { backgroundColor: "#FFCB6B" },
+  statusText: { color: "#D7D7D7", fontSize: 7, fontWeight: "900", letterSpacing: 0.45 },
+  title: { color: "#FFFFFF", fontSize: 17, lineHeight: 21, fontWeight: "900", marginTop: 4 },
   meta: { color: "#A9A9A9", fontSize: 9, marginTop: 4 },
   metaRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, marginTop: 5 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 3, maxWidth: "48%" },
   metaItemText: { color: "#C7C7C7", fontSize: 9, fontWeight: "700" },
-  healthDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: "#FF7777", marginTop: 2 },
-  healthDotReady: { backgroundColor: "#83DD57" },
-  metricsRow: { minHeight: 67, flexDirection: "row", alignItems: "center", marginTop: 13, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.10)" },
-  metric: { flex: 1, alignItems: "center", justifyContent: "center" },
-  metricSeparator: { width: StyleSheet.hairlineWidth, height: 37, backgroundColor: "rgba(255,255,255,0.13)" },
+  readinessBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, padding: 11, borderRadius: 15, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.10)" },
+  readinessMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: 9 },
+  readinessCopy: { flex: 1 },
+  readinessTitle: { color: "#F4F4F4", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  readinessSubtitle: { color: "#9F9F9F", fontSize: 8, marginTop: 2 },
+  readinessRatio: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", marginLeft: 7 },
+  metricsRow: { minHeight: 64, flexDirection: "row", alignItems: "center", marginTop: 9, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.10)" },
+  metric: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 55 },
+  metricSeparator: { width: StyleSheet.hairlineWidth, height: 35, backgroundColor: "rgba(255,255,255,0.13)" },
   metricValue: { color: Theme.colors.goldLight, fontSize: 20, fontWeight: "900" },
   metricValuePositive: { color: "#83DD57" },
   metricValueWarning: { color: "#FFCB6B" },
   metricLabel: { color: "#9F9F9F", fontSize: 8, fontWeight: "800", marginTop: 2 },
-  readiness: { flex: 0.9, alignItems: "center", justifyContent: "center", gap: 2 },
-  readinessLabel: { color: "#AFAFAF", fontSize: 7, fontWeight: "900", letterSpacing: 0.7 },
+  metricLabelReady: { color: "#83DD57" },
   alertBox: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, padding: 10, borderRadius: 13, backgroundColor: "rgba(255,178,54,0.08)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,203,107,0.24)" },
   alertText: { flex: 1, color: "#FFD99A", fontSize: 9, lineHeight: 14 },
   actions: { flexDirection: "row", gap: 7, marginTop: 11 },
-  action: { flex: 1, minHeight: 44, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.35)", backgroundColor: "rgba(0,0,0,0.10)" },
+  action: { flex: 1, minHeight: 44, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.35)", backgroundColor: "rgba(0,0,0,0.10)", paddingHorizontal: 7 },
   actionPrimary: { backgroundColor: Theme.colors.goldLight, borderColor: Theme.colors.goldLight, shadowColor: Theme.colors.goldLight, shadowOpacity: 0.18, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-  actionText: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900" },
+  actionText: { color: Theme.colors.goldLight, fontSize: 8, fontWeight: "900" },
   actionTextPrimary: { color: "#080808" },
 });

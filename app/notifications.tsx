@@ -41,11 +41,8 @@ export default function NotificationsScreen() {
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    try {
-      await load();
-    } finally {
-      setRefreshing(false);
-    }
+    try { await load(); }
+    finally { setRefreshing(false); }
   }, [load]);
 
   const openItem = useCallback(async (item: DynoNotificationItem) => {
@@ -62,15 +59,18 @@ export default function NotificationsScreen() {
   const unread = items.filter((item) => !item.read).length;
 
   return (
-    <MarbleScreen strongerOverlay contentStyle={[styles.screen, { paddingTop: Math.max(insets.top, 18) }]}> 
+    <MarbleScreen strongerOverlay contentStyle={[styles.screen, { paddingTop: Math.max(insets.top, 18) }]}>
       <View style={styles.header}>
-        <TouchableOpacity accessibilityRole="button" style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={23} color="#FFFFFF" />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" style={styles.backButton} onPress={() => router.back()} activeOpacity={0.82}>
+          <Ionicons name="arrow-back" size={21} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.headerText}>
-          <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
+          <Text style={styles.kicker}>DYNO · CENTRE D’ACTIVITÉ</Text>
           <Text style={styles.title}>Notifications</Text>
-          <Text style={styles.subtitle}>{unread ? `${unread} information${unread > 1 ? "s" : ""} à consulter` : "Tu es à jour"}</Text>
+          <View style={styles.subtitleRow}>
+            <View style={[styles.headerStateDot, unread ? styles.headerStateDotAction : styles.headerStateDotOk]} />
+            <Text style={styles.subtitle}>{unread ? `${unread} élément${unread > 1 ? "s" : ""} demande${unread > 1 ? "nt" : ""} ton attention` : "Aucune action en attente"}</Text>
+          </View>
         </View>
       </View>
 
@@ -81,8 +81,11 @@ export default function NotificationsScreen() {
       >
         <NotificationCenter items={items} onOpenNotification={openItem} onMarkAllRead={markAllRead} />
         <View style={styles.infoBox}>
-          <Ionicons name="shield-checkmark-outline" size={19} color="#83DD57" />
-          <Text style={styles.infoText}>L’historique de lecture reste stocké sur cet appareil. Aucune donnée privée supplémentaire n’est envoyée.</Text>
+          <View style={styles.infoIcon}><Ionicons name="shield-checkmark-outline" size={17} color="#83DD57" /></View>
+          <View style={styles.infoCopy}>
+            <Text style={styles.infoTitle}>Lecture locale et privée</Text>
+            <Text style={styles.infoText}>L’état lu/non lu reste enregistré sur cet appareil. DYNO n’envoie aucune donnée privée supplémentaire.</Text>
+          </View>
         </View>
       </ScrollView>
     </MarbleScreen>
@@ -91,13 +94,20 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   screen: { paddingHorizontal: 18 },
-  header: { flexDirection: "row", alignItems: "center", gap: 14, paddingBottom: 18 },
-  backButton: { width: 46, height: 46, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.76)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.colors.borderGold },
+  header: { flexDirection: "row", alignItems: "center", gap: 13, paddingBottom: 15 },
+  backButton: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,8,8,0.72)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.colors.borderGold },
   headerText: { flex: 1 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 1.4 },
-  title: { color: "#FFFFFF", fontSize: 31, fontWeight: "900", marginTop: 4 },
-  subtitle: { color: "#B8B8B8", fontSize: 12, marginTop: 4 },
-  content: { paddingTop: 4 },
-  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 14, borderRadius: 16, backgroundColor: "rgba(131,221,87,0.055)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(131,221,87,0.22)" },
-  infoText: { flex: 1, color: "#B9C5B4", fontSize: 10, lineHeight: 16 },
+  kicker: { color: Theme.colors.goldLight, fontSize: 8, fontWeight: "900", letterSpacing: 1.3 },
+  title: { color: "#FFFFFF", fontSize: 29, fontWeight: "900", marginTop: 3 },
+  subtitleRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  headerStateDot: { width: 7, height: 7, borderRadius: 99 },
+  headerStateDotAction: { backgroundColor: "#FFCB6B" },
+  headerStateDotOk: { backgroundColor: "#83DD57" },
+  subtitle: { flex: 1, color: "#B8B8B8", fontSize: 10 },
+  content: { paddingTop: 2 },
+  infoBox: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, borderRadius: 15, backgroundColor: "rgba(131,221,87,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(131,221,87,0.17)" },
+  infoIcon: { width: 32, height: 32, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(131,221,87,0.07)" },
+  infoCopy: { flex: 1 },
+  infoTitle: { color: "#CFEAC2", fontSize: 9, fontWeight: "900" },
+  infoText: { color: "#AEBBA9", fontSize: 9, lineHeight: 14, marginTop: 3 },
 });

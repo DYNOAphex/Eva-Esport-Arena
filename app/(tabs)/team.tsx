@@ -4,6 +4,7 @@ import { Alert, ImageBackground, Modal, Pressable, ScrollView, StyleSheet, Text,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Theme } from "../../constants/theme";
+import { TeamConnectionState, TeamPresenceGauge } from "../../components/dyno/TeamRosterVisualGuide";
 import { getPlayersScrimAccess, setPlayerScrimAccess } from "../../services/accessAdmin";
 import { getStoredSession } from "../../services/authService";
 import { getMatches, Match, subscribeToMatches } from "../../services/matchStore";
@@ -165,65 +166,31 @@ export default function TeamScreen() {
         <View style={styles.overlay} />
         <View style={styles.whiteGlow} />
         <View style={styles.goldVein} />
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 18) + 12, paddingBottom: Math.max(insets.bottom, 10) + 118 }]}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
+        <ScrollView contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 18) + 12, paddingBottom: Math.max(insets.bottom, 10) + 118 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.headingRow}>
             <View style={styles.headingText}>
               <Text style={styles.kicker}>DYNO ESPORT MANAGER</Text>
               <Text style={styles.title}>Équipe</Text>
-              <Text style={styles.subtitle}>{isOwner ? "Pilote les membres, les comptes et les droits depuis un seul écran." : "Retrouve l'équipe et tes statistiques de présence."}</Text>
+              <Text style={styles.subtitle}>{isOwner ? "Gère le roster et les accès sans perdre de vue l'essentiel : les joueurs." : "Roster, rôles et présence de l'équipe."}</Text>
             </View>
-            {isOwner ? (
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter un joueur" style={styles.addButton} onPress={openAddModal} activeOpacity={0.85}>
-                <Ionicons name="person-add" size={21} color="#111" />
-              </TouchableOpacity>
-            ) : null}
+            {isOwner ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter un joueur" style={styles.addButton} onPress={openAddModal} activeOpacity={0.85}><Ionicons name="person-add" size={20} color="#111" /></TouchableOpacity> : null}
           </View>
 
-          <View style={styles.summaryGrid}>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryIcon}><Ionicons name="people" size={18} color={Theme.colors.goldLight} /></View>
-              <Text style={styles.summaryValue}>{members.length}</Text>
-              <Text style={styles.summaryLabel}>Membres</Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryIcon}><Ionicons name="link" size={18} color="#84D956" /></View>
-              <Text style={styles.summaryValue}>{linkedCount}</Text>
-              <Text style={styles.summaryLabel}>Comptes liés</Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryIcon}><Ionicons name="flash" size={18} color="#7CCBFF" /></View>
-              <Text style={styles.summaryValue}>{creatorCount}</Text>
-              <Text style={styles.summaryLabel}>Créateurs</Text>
-            </View>
+          <View style={styles.summaryStrip}>
+            <SummaryMetric icon="people" value={members.length} label="Membres" color={Theme.colors.goldLight} />
+            <View style={styles.summaryDivider} />
+            <SummaryMetric icon="link" value={linkedCount} label="Liés" color="#84D956" />
+            <View style={styles.summaryDivider} />
+            <SummaryMetric icon="flash" value={creatorCount} label="Créateurs" color="#7CCBFF" />
           </View>
 
           <View style={styles.searchBox}>
             <Ionicons name="search" size={18} color="#BDBDBD" />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Rechercher un joueur"
-              placeholderTextColor="#858585"
-              style={styles.searchInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-            {search ? (
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Effacer la recherche" onPress={() => setSearch("")} style={styles.clearSearch}>
-                <Ionicons name="close-circle" size={18} color="#AFAFAF" />
-              </TouchableOpacity>
-            ) : null}
+            <TextInput value={search} onChangeText={setSearch} placeholder="Rechercher un joueur" placeholderTextColor="#858585" style={styles.searchInput} autoCapitalize="none" autoCorrect={false} returnKeyType="search" />
+            {search ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Effacer la recherche" onPress={() => setSearch("")} style={styles.clearSearch}><Ionicons name="close-circle" size={18} color="#AFAFAF" /></TouchableOpacity> : null}
           </View>
 
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>ROSTER</Text>
-            <Text style={styles.sectionCount}>{filteredMembers.length} affiché{filteredMembers.length > 1 ? "s" : ""}</Text>
-          </View>
+          <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>ROSTER</Text><Text style={styles.sectionCount}>{filteredMembers.length} joueur{filteredMembers.length > 1 ? "s" : ""}</Text></View>
 
           {filteredMembers.map((member) => {
             const attendance = getAttendance(member);
@@ -232,112 +199,49 @@ export default function TeamScreen() {
             const roleIcon = role === "Administrateur" ? "shield-checkmark" : role === "Créateur de scrims" ? "flash" : "person";
             const roleColor = role === "Administrateur" ? "#FFD86A" : role === "Créateur de scrims" ? "#7CCBFF" : "#C7C7C7";
             return (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${member.nickname}, ${role}`}
-                key={member.id}
-                style={({ pressed }) => [styles.card, isCurrentUser && styles.currentCard, pressed && styles.cardPressed]}
-                onPress={() => openMemberActions(member)}
-              >
+              <Pressable accessibilityRole="button" accessibilityLabel={`${member.nickname}, ${role}`} key={member.id} style={({ pressed }) => [styles.card, isCurrentUser && styles.currentCard, pressed && styles.cardPressed]} onPress={() => openMemberActions(member)}>
                 <View style={styles.cardVein} />
                 <View style={styles.memberTop}>
-                  <View style={[styles.avatar, isCurrentUser && styles.avatarCurrent]}>
-                    <Text style={styles.avatarText}>{initials(member.nickname)}</Text>
-                    {member.accountUid ? <View style={styles.linkDot} /> : null}
-                  </View>
+                  <View style={[styles.avatar, isCurrentUser && styles.avatarCurrent]}><Text style={styles.avatarText}>{initials(member.nickname)}</Text>{member.accountUid ? <View style={styles.linkDot} /> : null}</View>
                   <View style={styles.memberIdentity}>
-                    <View style={styles.nameRow}>
-                      <Text numberOfLines={1} style={styles.name}>{member.nickname}</Text>
-                      {isCurrentUser ? <View style={styles.meBadge}><Text style={styles.meText}>MOI</Text></View> : null}
-                    </View>
+                    <View style={styles.nameRow}><Text numberOfLines={1} style={styles.name}>{member.nickname}</Text>{isCurrentUser ? <View style={styles.meBadge}><Text style={styles.meText}>MOI</Text></View> : null}</View>
                     <View style={styles.memberMetaRow}>
-                      <View style={[styles.roleBadge, role === "Administrateur" ? styles.adminRole : role === "Créateur de scrims" ? styles.creatorRole : styles.playerRole]}>
-                        <Ionicons name={roleIcon} size={12} color={roleColor} />
-                        <Text style={[styles.roleText, { color: roleColor }]}>{role}</Text>
-                      </View>
-                      <View style={[styles.accountPill, member.accountUid && styles.accountPillLinked]}>
-                        <Ionicons name={member.accountUid ? "checkmark-circle" : "unlink"} size={12} color={member.accountUid ? "#84D956" : "#A8A8A8"} />
-                        <Text style={[styles.accountPillText, member.accountUid && styles.accountPillTextLinked]}>{member.accountUid ? "Compte lié" : "À associer"}</Text>
-                      </View>
+                      <View style={[styles.roleBadge, role === "Administrateur" ? styles.adminRole : role === "Créateur de scrims" ? styles.creatorRole : styles.playerRole]}><Ionicons name={roleIcon} size={12} color={roleColor} /><Text style={[styles.roleText, { color: roleColor }]}>{role}</Text></View>
+                      <TeamConnectionState linked={Boolean(member.accountUid)} />
                     </View>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color="#8C8C8C" />
+                  <View style={styles.moreButton}><Ionicons name="ellipsis-horizontal" size={19} color={Theme.colors.goldLight} /></View>
                 </View>
 
-                <View style={styles.presenceHeader}>
-                  <View>
-                    <Text style={styles.presenceLabel}>PRÉSENCE</Text>
-                    <Text style={styles.presenceText}>{attendance.total ? `${attendance.present}/${attendance.total} disponibilités positives` : "Aucune réponse enregistrée"}</Text>
-                  </View>
-                  <Text style={[styles.rate, attendance.total ? null : styles.rateMuted]}>{attendance.total ? `${attendance.rate}%` : "—"}</Text>
-                </View>
-                <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${attendance.rate}%` }]} /></View>
+                <TeamPresenceGauge rate={attendance.rate} present={attendance.present} total={attendance.total} />
 
                 <View style={styles.actionHintRow}>
-                  <Ionicons name={isCurrentUser ? "create-outline" : isOwner ? "options-outline" : "information-circle-outline"} size={14} color={isCurrentUser ? "#84D956" : Theme.colors.goldLight} />
-                  <Text style={[styles.actionHint, isCurrentUser && styles.actionHintCurrent]}>
-                    {isCurrentUser ? "Modifier mon profil" : isOwner ? "Gérer ce membre" : "Voir les informations"}
-                  </Text>
+                  <Text style={[styles.actionHint, isCurrentUser && styles.actionHintCurrent]}>{isCurrentUser ? "Mon profil" : isOwner ? "Gérer le joueur" : "Voir le joueur"}</Text>
+                  <Ionicons name="chevron-forward" size={14} color={isCurrentUser ? "#84D956" : Theme.colors.goldLight} />
                 </View>
               </Pressable>
             );
           })}
 
-          {!members.length ? (
-            <View style={styles.emptyCard}>
-              <View style={styles.emptyIcon}><Ionicons name="people-outline" size={28} color={Theme.colors.goldLight} /></View>
-              <Text style={styles.emptyTitle}>Aucun joueur</Text>
-              <Text style={styles.emptyText}>Ajoute les membres de DYNO pour commencer à suivre les rôles et les disponibilités.</Text>
-            </View>
-          ) : null}
-
-          {members.length > 0 && !filteredMembers.length ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="search-outline" size={26} color="#AFAFAF" />
-              <Text style={styles.emptyTitle}>Aucun résultat</Text>
-              <Text style={styles.emptyText}>Aucun pseudo ne correspond à « {search.trim()} ».</Text>
-            </View>
-          ) : null}
-
-          <Text style={styles.hint}>Les rôles et comptes liés sont synchronisés avec les services DYNO.</Text>
+          {!members.length ? <View style={styles.emptyCard}><View style={styles.emptyIcon}><Ionicons name="people-outline" size={28} color={Theme.colors.goldLight} /></View><Text style={styles.emptyTitle}>Aucun joueur</Text><Text style={styles.emptyText}>Ajoute les membres de DYNO pour commencer à suivre les rôles et les disponibilités.</Text></View> : null}
+          {members.length > 0 && !filteredMembers.length ? <View style={styles.emptyCard}><Ionicons name="search-outline" size={26} color="#AFAFAF" /><Text style={styles.emptyTitle}>Aucun résultat</Text><Text style={styles.emptyText}>Aucun pseudo ne correspond à « {search.trim()} ».</Text></View> : null}
+          <Text style={styles.hint}>Rôles, comptes et présences sont synchronisés avec DYNO.</Text>
         </ScrollView>
       </ImageBackground>
 
       <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
-        <View style={styles.modalBackdrop}><View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 16) + 22 }]}>
-          <View style={styles.modalHandle} />
-          <View style={styles.modalHeader}>
-            <View><Text style={styles.modalEyebrow}>ÉQUIPE DYNO</Text><Text style={styles.modalTitle}>{modalMode === "edit" ? "Modifier mon pseudo" : "Ajouter un joueur"}</Text></View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.closeButton} onPress={() => setModalVisible(false)}><Ionicons name="close" size={22} color="#fff" /></TouchableOpacity>
-          </View>
-          <TextInput value={nickname} onChangeText={setNickname} placeholder="Pseudo" placeholderTextColor="#777" style={styles.input} autoCapitalize="none" maxLength={24} />
-          <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={savePlayer} disabled={saving}><Text style={styles.saveText}>{saving ? "Enregistrement…" : modalMode === "edit" ? "Enregistrer le pseudo" : "Ajouter à l'équipe"}</Text></TouchableOpacity>
-        </View></View>
+        <View style={styles.modalBackdrop}><View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 16) + 22 }]}><View style={styles.modalHandle} /><View style={styles.modalHeader}><View><Text style={styles.modalEyebrow}>ÉQUIPE DYNO</Text><Text style={styles.modalTitle}>{modalMode === "edit" ? "Modifier mon pseudo" : "Ajouter un joueur"}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.closeButton} onPress={() => setModalVisible(false)}><Ionicons name="close" size={22} color="#fff" /></TouchableOpacity></View><TextInput value={nickname} onChangeText={setNickname} placeholder="Pseudo" placeholderTextColor="#777" style={styles.input} autoCapitalize="none" maxLength={24} /><TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={savePlayer} disabled={saving}><Text style={styles.saveText}>{saving ? "Enregistrement…" : modalMode === "edit" ? "Enregistrer le pseudo" : "Ajouter à l'équipe"}</Text></TouchableOpacity></View></View>
       </Modal>
 
       <Modal visible={permissionModalVisible} transparent animationType="slide" onRequestClose={() => setPermissionModalVisible(false)}>
-        <View style={styles.modalBackdrop}><View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 16) + 22 }]}>
-          <View style={styles.modalHandle} />
-          <View style={styles.modalHeader}>
-            <View><Text style={styles.modalEyebrow}>PERMISSIONS</Text><Text style={styles.modalTitle}>Gérer les droits</Text><Text style={styles.permissionName}>{selectedMember?.nickname}</Text></View>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.closeButton} onPress={() => setPermissionModalVisible(false)}><Ionicons name="close" size={22} color="#fff" /></TouchableOpacity>
-          </View>
-          <Text style={styles.permissionIntro}>Choisis le niveau d'accès. Le changement est synchronisé sur Android et Safari.</Text>
-          <TouchableOpacity style={[styles.permissionChoice, selectedMember?.accountUid && !scrimAccess[selectedMember.accountUid] && styles.permissionChoiceActive]} onPress={() => void updatePermission(false)} disabled={savingPermission}>
-            <View style={styles.permissionIcon}><Ionicons name="person" size={22} color="#D0D0D0" /></View>
-            <View style={styles.permissionText}><Text style={styles.permissionTitle}>Joueur</Text><Text style={styles.permissionDescription}>Consulte les rendez-vous et répond à ses disponibilités.</Text></View>
-            {selectedMember?.accountUid && !scrimAccess[selectedMember.accountUid] ? <Ionicons name="checkmark-circle" size={22} color="#84D956" /> : null}
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.permissionChoice, selectedMember?.accountUid && scrimAccess[selectedMember.accountUid] && styles.permissionChoiceActive]} onPress={() => void updatePermission(true)} disabled={savingPermission}>
-            <View style={[styles.permissionIcon, styles.creatorIcon]}><Ionicons name="flash" size={22} color="#7CCBFF" /></View>
-            <View style={styles.permissionText}><Text style={styles.permissionTitle}>Créateur de scrims</Text><Text style={styles.permissionDescription}>Peut créer des scrims et des rendez-vous Replay / Strat.</Text></View>
-            {selectedMember?.accountUid && scrimAccess[selectedMember.accountUid] ? <Ionicons name="checkmark-circle" size={22} color="#84D956" /> : null}
-          </TouchableOpacity>
-          {savingPermission ? <Text style={styles.savingPermission}>Mise à jour des droits…</Text> : null}
-        </View></View>
+        <View style={styles.modalBackdrop}><View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 16) + 22 }]}><View style={styles.modalHandle} /><View style={styles.modalHeader}><View><Text style={styles.modalEyebrow}>PERMISSIONS</Text><Text style={styles.modalTitle}>Gérer les droits</Text><Text style={styles.permissionName}>{selectedMember?.nickname}</Text></View><TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" style={styles.closeButton} onPress={() => setPermissionModalVisible(false)}><Ionicons name="close" size={22} color="#fff" /></TouchableOpacity></View><Text style={styles.permissionIntro}>Choisis le niveau d'accès. Le changement est synchronisé sur Android et Safari.</Text><TouchableOpacity style={[styles.permissionChoice, selectedMember?.accountUid && !scrimAccess[selectedMember.accountUid] && styles.permissionChoiceActive]} onPress={() => void updatePermission(false)} disabled={savingPermission}><View style={styles.permissionIcon}><Ionicons name="person" size={22} color="#D0D0D0" /></View><View style={styles.permissionText}><Text style={styles.permissionTitle}>Joueur</Text><Text style={styles.permissionDescription}>Consulte les rendez-vous et répond à ses disponibilités.</Text></View>{selectedMember?.accountUid && !scrimAccess[selectedMember.accountUid] ? <Ionicons name="checkmark-circle" size={22} color="#84D956" /> : null}</TouchableOpacity><TouchableOpacity style={[styles.permissionChoice, selectedMember?.accountUid && scrimAccess[selectedMember.accountUid] && styles.permissionChoiceActive]} onPress={() => void updatePermission(true)} disabled={savingPermission}><View style={[styles.permissionIcon, styles.creatorIcon]}><Ionicons name="flash" size={22} color="#7CCBFF" /></View><View style={styles.permissionText}><Text style={styles.permissionTitle}>Créateur de scrims</Text><Text style={styles.permissionDescription}>Peut créer des scrims et des rendez-vous Replay / Strat.</Text></View>{selectedMember?.accountUid && scrimAccess[selectedMember.accountUid] ? <Ionicons name="checkmark-circle" size={22} color="#84D956" /> : null}</TouchableOpacity>{savingPermission ? <Text style={styles.savingPermission}>Mise à jour des droits…</Text> : null}</View></View>
       </Modal>
     </View>
   );
+}
+
+function SummaryMetric({ icon, value, label, color }: { icon: keyof typeof Ionicons.glyphMap; value: number; label: string; color: string }) {
+  return <View style={styles.summaryMetric}><Ionicons name={icon} size={16} color={color} /><View><Text style={styles.summaryMetricValue}>{value}</Text><Text style={styles.summaryMetricLabel}>{label}</Text></View></View>;
 }
 
 const styles = StyleSheet.create({
@@ -348,62 +252,52 @@ const styles = StyleSheet.create({
   whiteGlow: { position: "absolute", top: -80, right: -120, width: 330, height: 430, borderRadius: 190, backgroundColor: Theme.marble.whiteGlow, transform: [{ rotate: "-18deg" }] },
   goldVein: { position: "absolute", top: 120, left: -70, width: 520, height: 2, backgroundColor: Theme.marble.goldVein, transform: [{ rotate: "-23deg" }] },
   content: { paddingHorizontal: 18 },
-  headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
+  headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 15 },
   headingText: { flex: 1 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 },
-  title: { color: "#fff", fontSize: 34, fontWeight: "900", marginTop: 4 },
-  subtitle: { color: "#D5D5D5", marginTop: 7, lineHeight: 19, paddingRight: 8 },
-  addButton: { width: 48, height: 48, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginLeft: 12, shadowColor: Theme.colors.gold, shadowOpacity: 0.32, shadowRadius: 12, elevation: 8 },
-  summaryGrid: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  summaryCard: { flex: 1, minHeight: 98, borderRadius: 20, padding: 12, justifyContent: "center", backgroundColor: "rgba(10,10,10,0.79)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border },
-  summaryIcon: { width: 30, height: 30, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.055)", marginBottom: 7 },
-  summaryValue: { color: "#fff", fontSize: 24, fontWeight: "900" },
-  summaryLabel: { color: "#BEBEBE", fontSize: 9, fontWeight: "800", marginTop: 2 },
-  searchBox: { height: 48, borderRadius: 16, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "rgba(8,8,8,0.82)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.2)", marginBottom: 18 },
-  searchInput: { flex: 1, height: "100%", color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+  kicker: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 1.6 },
+  title: { color: "#fff", fontSize: 32, fontWeight: "900", marginTop: 3 },
+  subtitle: { color: "#C9C9C9", marginTop: 5, lineHeight: 18, paddingRight: 8, fontSize: 12 },
+  addButton: { width: 45, height: 45, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, marginLeft: 12, shadowColor: Theme.colors.gold, shadowOpacity: 0.25, shadowRadius: 10, elevation: 6 },
+  summaryStrip: { minHeight: 66, borderRadius: 18, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.82)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border },
+  summaryMetric: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  summaryMetricValue: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
+  summaryMetricLabel: { color: "#9F9F9F", fontSize: 8, fontWeight: "800", marginTop: 1 },
+  summaryDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: "rgba(255,255,255,0.11)" },
+  searchBox: { height: 45, borderRadius: 15, paddingHorizontal: 13, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "rgba(8,8,8,0.8)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.17)", marginBottom: 16 },
+  searchInput: { flex: 1, height: "100%", color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   clearSearch: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10, paddingHorizontal: 2 },
-  sectionTitle: { color: Theme.colors.goldLight, fontSize: 11, fontWeight: "900", letterSpacing: 1.5 },
-  sectionCount: { color: "#9D9D9D", fontSize: 10, fontWeight: "700" },
-  card: { borderRadius: 22, padding: 15, marginBottom: 11, overflow: "hidden", backgroundColor: "rgba(8,8,8,0.8)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
-  currentCard: { borderColor: "rgba(132,217,86,0.48)", backgroundColor: "rgba(9,15,7,0.82)" },
-  cardPressed: { opacity: 0.8, transform: [{ scale: 0.995 }] },
-  cardVein: { position: "absolute", top: 0, right: 22, width: 110, height: 1, backgroundColor: Theme.marble.goldVein },
-  memberTop: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: { width: 52, height: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.07)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.25)" },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 9, paddingHorizontal: 2 },
+  sectionTitle: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.4 },
+  sectionCount: { color: "#929292", fontSize: 9, fontWeight: "700" },
+  card: { borderRadius: 19, padding: 13, marginBottom: 9, overflow: "hidden", backgroundColor: "rgba(8,8,8,0.8)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border, shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  currentCard: { borderColor: "rgba(132,217,86,0.42)", backgroundColor: "rgba(9,15,7,0.82)" },
+  cardPressed: { opacity: 0.82, transform: [{ scale: 0.995 }] },
+  cardVein: { position: "absolute", top: 0, right: 22, width: 100, height: 1, backgroundColor: Theme.marble.goldVein },
+  memberTop: { flexDirection: "row", alignItems: "center", gap: 11 },
+  avatar: { width: 46, height: 46, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.065)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.22)" },
   avatarCurrent: { borderColor: "rgba(132,217,86,0.5)", backgroundColor: "rgba(132,217,86,0.08)" },
-  avatarText: { color: "#FFFFFF", fontSize: 17, fontWeight: "900", letterSpacing: 0.5 },
-  linkDot: { position: "absolute", right: -2, bottom: -2, width: 13, height: 13, borderRadius: 7, backgroundColor: "#84D956", borderWidth: 2, borderColor: "#111" },
+  avatarText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", letterSpacing: 0.4 },
+  linkDot: { position: "absolute", right: -2, bottom: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: "#84D956", borderWidth: 2, borderColor: "#111" },
   memberIdentity: { flex: 1 },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 7 },
-  name: { flexShrink: 1, color: "#fff", fontWeight: "900", fontSize: 18 },
-  meBadge: { paddingHorizontal: 7, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(132,217,86,0.12)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(132,217,86,0.32)" },
-  meText: { color: "#84D956", fontSize: 8, fontWeight: "900" },
-  memberMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 7 },
-  roleBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, minHeight: 24, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
-  adminRole: { backgroundColor: "rgba(224,184,67,0.12)", borderColor: "rgba(255,216,106,0.34)" },
-  creatorRole: { backgroundColor: "rgba(80,160,220,0.12)", borderColor: "rgba(124,203,255,0.34)" },
-  playerRole: { backgroundColor: "rgba(255,255,255,0.045)", borderColor: "rgba(255,255,255,0.12)" },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  name: { flexShrink: 1, color: "#fff", fontWeight: "900", fontSize: 17 },
+  meBadge: { paddingHorizontal: 6, height: 19, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(132,217,86,0.11)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(132,217,86,0.3)" },
+  meText: { color: "#84D956", fontSize: 7, fontWeight: "900" },
+  memberMetaRow: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 6 },
+  roleBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, minHeight: 23, borderRadius: 11, borderWidth: StyleSheet.hairlineWidth },
+  adminRole: { backgroundColor: "rgba(224,184,67,0.11)", borderColor: "rgba(255,216,106,0.3)" },
+  creatorRole: { backgroundColor: "rgba(80,160,220,0.1)", borderColor: "rgba(124,203,255,0.3)" },
+  playerRole: { backgroundColor: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.1)" },
   roleText: { fontSize: 8, fontWeight: "900" },
-  accountPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, minHeight: 24, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
-  accountPillLinked: { backgroundColor: "rgba(132,217,86,0.055)", borderColor: "rgba(132,217,86,0.18)" },
-  accountPillText: { color: "#A8A8A8", fontSize: 8, fontWeight: "800" },
-  accountPillTextLinked: { color: "#9DDD7A" },
-  presenceHeader: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12, marginTop: 16 },
-  presenceLabel: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
-  presenceText: { color: "#BEBEBE", marginTop: 4, fontSize: 10, fontWeight: "700" },
-  rate: { color: "#FFFFFF", fontSize: 21, fontWeight: "900" },
-  rateMuted: { color: "#777" },
-  progressTrack: { height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.1)", marginTop: 8, overflow: "hidden" },
-  progressFill: { height: "100%", borderRadius: 3, backgroundColor: Theme.colors.goldLight },
-  actionHintRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12 },
-  actionHint: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "800" },
+  moreButton: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,215,106,0.055)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.18)" },
+  actionHintRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 9 },
+  actionHint: { color: Theme.colors.goldLight, fontSize: 8, fontWeight: "900", letterSpacing: 0.2 },
   actionHintCurrent: { color: "#84D956" },
-  emptyCard: { alignItems: "center", padding: 24, borderRadius: 22, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.72)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border },
-  emptyIcon: { width: 52, height: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,215,106,0.07)", marginBottom: 10 },
+  emptyCard: { alignItems: "center", padding: 24, borderRadius: 20, marginBottom: 12, backgroundColor: "rgba(8,8,8,0.72)", borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.border },
+  emptyIcon: { width: 50, height: 50, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,215,106,0.07)", marginBottom: 9 },
   emptyTitle: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", marginTop: 8 },
   emptyText: { color: "#AAAAAA", fontSize: 11, lineHeight: 17, textAlign: "center", marginTop: 5 },
-  hint: { color: "#8F8F8F", fontSize: 9, lineHeight: 14, textAlign: "center", marginTop: 5 },
+  hint: { color: "#858585", fontSize: 9, lineHeight: 14, textAlign: "center", marginTop: 5 },
   modalBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.76)" },
   modalCard: { backgroundColor: "rgba(14,14,14,0.985)", borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: Theme.glass.borderGold },
   modalHandle: { width: 42, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: "rgba(255,255,255,0.2)", marginBottom: 14 },

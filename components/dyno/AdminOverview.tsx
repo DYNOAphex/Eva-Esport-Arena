@@ -12,65 +12,69 @@ type AdminOverviewProps = {
   firebaseReady?: boolean;
 };
 
-export default function AdminOverview({
-  confirmationThreshold,
-  notificationsEnabled,
-  reminder24h,
-  reminder1h,
-  firebaseReady,
-}: AdminOverviewProps) {
+export default function AdminOverview({ confirmationThreshold, notificationsEnabled, reminder24h, reminder1h, firebaseReady }: AdminOverviewProps) {
   const activeReminders = [reminder24h, reminder1h].filter(Boolean).length;
+  const status = firebaseReady ? "Synchronisé" : "À vérifier";
 
   return (
     <GlassCard style={styles.card} strong>
       <View style={styles.header}>
-        <View style={styles.iconBox}>
-          <Ionicons name="shield-checkmark-outline" size={22} color={Theme.colors.goldLight} />
-        </View>
+        <View style={styles.headerIcon}><Ionicons name="shield-checkmark-outline" size={19} color={Theme.colors.goldLight} /></View>
         <View style={styles.headerText}>
-          <Text style={styles.kicker}>GESTION DE L’ÉQUIPE</Text>
-          <Text style={styles.title}>Paramètres des scrims</Text>
+          <Text style={styles.kicker}>RÈGLES DE L’ÉQUIPE</Text>
+          <Text style={styles.title}>Gestion des scrims</Text>
         </View>
-        <View style={[styles.syncDot, firebaseReady && styles.syncDotReady]} />
+        <View style={[styles.syncPill, firebaseReady && styles.syncPillReady]}>
+          <View style={[styles.syncDot, firebaseReady && styles.syncDotReady]} />
+          <Text style={[styles.syncText, firebaseReady && styles.syncTextReady]}>{status}</Text>
+        </View>
       </View>
 
-      <View style={styles.grid}>
-        <Stat icon="people-outline" value={String(confirmationThreshold)} label="Joueurs requis" />
-        <Stat icon="notifications-outline" value={notificationsEnabled ? "ON" : "OFF"} label="Notifications" />
-        <Stat icon="alarm-outline" value={String(activeReminders)} label="Rappels actifs" />
+      <View style={styles.row}>
+        <Stat icon="people-outline" value={String(confirmationThreshold)} label="joueurs requis" />
+        <Stat icon="notifications-outline" value={notificationsEnabled ? "ON" : "OFF"} label="notifications" positive={notificationsEnabled} />
+        <Stat icon="alarm-outline" value={String(activeReminders)} label="rappels actifs" />
       </View>
 
       <View style={styles.hintRow}>
-        <Ionicons name="information-circle-outline" size={16} color="#A7A7A7" />
-        <Text style={styles.hint}>Le seuil confirme automatiquement un scrim dès que suffisamment de joueurs sont disponibles.</Text>
+        <Ionicons name="flash-outline" size={14} color={Theme.colors.goldLight} />
+        <Text style={styles.hint}>Un scrim passe automatiquement en confirmé dès que le seuil de joueurs disponibles est atteint.</Text>
       </View>
     </GlassCard>
   );
 }
 
-function Stat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
+function Stat({ icon, value, label, positive = false }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string; positive?: boolean }) {
   return (
     <View style={styles.stat}>
-      <Ionicons name={icon} size={17} color={Theme.colors.goldLight} />
-      <Text style={styles.value}>{value}</Text>
-      <Text style={styles.label}>{label}</Text>
+      <Ionicons name={icon} size={15} color={positive ? "#83DD57" : Theme.colors.goldLight} />
+      <View style={styles.statText}>
+        <Text style={[styles.value, positive && styles.valuePositive]}>{value}</Text>
+        <Text style={styles.label}>{label}</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { marginBottom: 18 },
-  header: { flexDirection: "row", alignItems: "center", gap: 11 },
-  iconBox: { width: 42, height: 42, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,215,106,0.08)" },
+  card: { marginBottom: 14, padding: 15 },
+  header: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerIcon: { width: 38, height: 38, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(246,215,106,0.07)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.16)" },
   headerText: { flex: 1 },
-  kicker: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 1.2 },
-  title: { color: "#FFFFFF", fontSize: 18, fontWeight: "900", marginTop: 4 },
-  syncDot: { width: 10, height: 10, borderRadius: 999, backgroundColor: "#FF7777" },
+  kicker: { color: Theme.colors.goldLight, fontSize: 8, fontWeight: "900", letterSpacing: 1.1 },
+  title: { color: "#FFFFFF", fontSize: 17, fontWeight: "900", marginTop: 3 },
+  syncPill: { minHeight: 25, paddingHorizontal: 8, borderRadius: 999, flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,119,119,0.06)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,119,119,0.18)" },
+  syncPillReady: { backgroundColor: "rgba(131,221,87,0.06)", borderColor: "rgba(131,221,87,0.2)" },
+  syncDot: { width: 6, height: 6, borderRadius: 99, backgroundColor: "#FF7777" },
   syncDotReady: { backgroundColor: "#83DD57" },
-  grid: { flexDirection: "row", gap: 8, marginTop: 15 },
-  stat: { flex: 1, minWidth: 0, minHeight: 78, borderRadius: 16, paddingHorizontal: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.045)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.1)" },
-  value: { color: "#FFFFFF", fontSize: 19, fontWeight: "900", marginTop: 5 },
-  label: { color: "#999999", fontSize: 8, fontWeight: "800", textAlign: "center", marginTop: 3 },
-  hintRow: { flexDirection: "row", alignItems: "flex-start", gap: 7, marginTop: 14 },
-  hint: { flex: 1, color: "#B8B8B8", fontSize: 10, lineHeight: 15 },
+  syncText: { color: "#D99595", fontSize: 7, fontWeight: "900" },
+  syncTextReady: { color: "#91D975" },
+  row: { flexDirection: "row", gap: 7, marginTop: 13 },
+  stat: { flex: 1, minWidth: 0, minHeight: 58, borderRadius: 14, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(255,255,255,0.035)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,255,255,0.09)" },
+  statText: { flex: 1, minWidth: 0 },
+  value: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
+  valuePositive: { color: "#83DD57" },
+  label: { color: "#929292", fontSize: 7, fontWeight: "800", marginTop: 1 },
+  hintRow: { flexDirection: "row", alignItems: "flex-start", gap: 7, marginTop: 11, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(255,255,255,0.07)" },
+  hint: { flex: 1, color: "#AFAFAF", fontSize: 9, lineHeight: 14 },
 });

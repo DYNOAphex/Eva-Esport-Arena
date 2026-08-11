@@ -25,7 +25,7 @@ export default function ScrimsScreen() {
   const [opponent, setOpponent] = useState("");
   const [date, setDate] = useState("");
   const [matchTime, setMatchTime] = useState("21:20");
-  const [matchTimeAlt, setMatchTimeAlt] = useState("22:00");
+  const [matchTimeAlt, setMatchTimeAlt] = useState<string | undefined>(undefined);
   const [arena, setArena] = useState<MatchArena>("Arène 1");
   const [status, setStatus] = useState<MatchStatus>("En attente");
   const [notes, setNotes] = useState("");
@@ -57,7 +57,7 @@ export default function ScrimsScreen() {
           setOpponent(match.opponent);
           setDate(match.date);
           setMatchTime(normalizeTime(match.matchTime, "21:20"));
-          setMatchTimeAlt(normalizeTime(match.matchTimeAlt, suggestSecondTime(match.matchTime)));
+          setMatchTimeAlt(normalizeOptionalTime(match.matchTimeAlt));
           setArena(match.arena);
           setStatus(match.status);
           setNotes(match.notes ?? "");
@@ -70,7 +70,9 @@ export default function ScrimsScreen() {
 
   const formReady = useMemo(() => {
     const hasTitle = Boolean(opponent.trim() || isReplay);
-    return hasTitle && /^\d{4}-\d{2}-\d{2}$/.test(date) && matchTime !== matchTimeAlt;
+    const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
+    const validTimes = !matchTimeAlt || matchTime !== matchTimeAlt;
+    return hasTitle && validDate && validTimes;
   }, [date, isReplay, matchTime, matchTimeAlt, opponent]);
 
   function chooseType(value: MatchType) {
@@ -83,6 +85,16 @@ export default function ScrimsScreen() {
       if (opponent === "Replay / Strat") setOpponent("");
       if (arena === "Aucune") setArena("Arène 1");
     }
+  }
+
+  function addSecondTime() {
+    setMatchTimeAlt(suggestSecondTime(matchTime));
+    setValidationMessage("");
+  }
+
+  function removeSecondTime() {
+    setMatchTimeAlt(undefined);
+    setValidationMessage("");
   }
 
   async function handleSave() {
@@ -99,9 +111,9 @@ export default function ScrimsScreen() {
       Alert.alert("Date manquante", "Sélectionne une date avant de programmer le rendez-vous.");
       return;
     }
-    if (matchTime === matchTimeAlt) {
-      setValidationMessage("Choisis deux horaires différents.");
-      Alert.alert("Horaires identiques", "Les deux possibilités doivent avoir des horaires différents.");
+    if (matchTimeAlt && matchTime === matchTimeAlt) {
+      setValidationMessage("Choisis deux horaires différents ou retire le deuxième créneau.");
+      Alert.alert("Horaires identiques", "Le deuxième créneau doit être différent du premier.");
       return;
     }
 
@@ -142,7 +154,10 @@ export default function ScrimsScreen() {
       const successTitle = isReplay
         ? (editId ? "Rendez-vous modifié" : "Rendez-vous programmé")
         : (editId ? "Scrim modifié" : "Scrim programmé");
-      Alert.alert(successTitle, `${match.opponent} est enregistré avec les créneaux ${formatTime(match.matchTime)} et ${formatTime(match.matchTimeAlt)}.`, [
+      const successMessage = match.matchTimeAlt
+        ? `${match.opponent} est enregistré avec les créneaux ${formatTime(match.matchTime)} et ${formatTime(match.matchTimeAlt)}.`
+        : `${match.opponent} est enregistré à ${formatTime(match.matchTime)}.`;
+      Alert.alert(successTitle, successMessage, [
         { text: "Voir l'Agenda", onPress: () => router.replace("/(tabs)/planning") },
       ]);
     } catch (error) {
@@ -190,12 +205,34 @@ export default function ScrimsScreen() {
             <Label text="Date" />
             <DateField value={date} onChange={(value) => { setDate(value); setValidationMessage(""); }} />
 
-            <Label text="Horaires possibles" />
+            <Label text="Heure du match" />
             <View style={styles.timeChoiceRow}>
-              <TimeField label="HORAIRE 1" value={matchTime} onChange={(value) => { setMatchTime(value); setValidationMessage(""); }} />
-              <TimeField label="HORAIRE 2" value={matchTimeAlt} onChange={(value) => { setMatchTimeAlt(value); setValidationMessage(""); }} />
+              <TimeField
+                label={matchTimeAlt ? "HORAIRE 1" : "HORAIRE PRINCIPAL"}
+                value={matchTime}
+                onChange={(value) => { setMatchTime(value); setValidationMessage(""); }}
+              />
+              {matchTimeAlt ? (
+                <TimeField
+                  label="HORAIRE 2"
+                  value={matchTimeAlt}
+                  onChange={(value) => { setMatchTimeAlt(value); setValidationMessage(""); }}
+                />
+              ) : null}
             </View>
-            <Text style={styles.timeHint}>Appuie sur chaque horaire pour le modifier librement.</Text>
+
+            {matchTimeAlt ? (
+              <TouchableOpacity accessibilityRole="button" style={[styles.altTimeButton, styles.removeAltTimeButton]} onPress={removeSecondTime} activeOpacity={0.82}>
+                <Ionicons name="remove-circle-outline" size={18} color="#FFB2B2" />
+                <Text style={[styles.altTimeButtonText, styles.removeAltTimeButtonText]}>RETIRER LE 2E CRÉNEAU</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity accessibilityRole="button" style={styles.altTimeButton} onPress={addSecondTime} activeOpacity={0.82}>
+                <Ionicons name="add-circle-outline" size={18} color={Theme.colors.goldLight} />
+                <Text style={styles.altTimeButtonText}>AJOUTER UN 2E CRÉNEAU</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.timeHint}>Un seul horaire suffit. Ajoute un deuxième créneau uniquement si plusieurs heures sont possibles.</Text>
 
             {!isReplay ? (
               <>
@@ -350,8 +387,16 @@ function normalizeTime(value: string | undefined, fallback: string) {
   return value && /^\d{2}:\d{2}$/.test(value) ? value : fallback;
 }
 
+function normalizeOptionalTime(value?: string) {
+  return value && /^\d{2}:\d{2}$/.test(value) ? value : undefined;
+}
+
 function suggestSecondTime(first: string) {
-  return first === "22:00" ? "21:20" : "22:00";
+  const [hours, minutes] = first.split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return "22:00";
+  const date = new Date();
+  date.setHours(hours, minutes + 40, 0, 0);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function earliestTime(first: string, second?: string) {
@@ -423,6 +468,10 @@ const styles = StyleSheet.create({
   timeSlotLabel: { color: "#AFAFAF", fontSize: 8, fontWeight: "900", letterSpacing: 0.9, marginBottom: 6 },
   timeChoice: { minHeight: 62, borderRadius: 17, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.045)", borderWidth: 1, borderColor: "rgba(246,215,106,0.28)", paddingHorizontal: 9 },
   timeChoiceText: { flex: 1, color: "#FFFFFF", fontSize: 18, fontWeight: "900", textAlign: "center" },
+  altTimeButton: { minHeight: 42, marginTop: 10, borderRadius: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.34)", backgroundColor: "rgba(246,215,106,0.055)" },
+  altTimeButtonText: { color: Theme.colors.goldLight, fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  removeAltTimeButton: { borderColor: "rgba(255,120,120,0.28)", backgroundColor: "rgba(255,90,90,0.045)" },
+  removeAltTimeButtonText: { color: "#FFB2B2" },
   timeHint: { color: "#AFAFAF", fontSize: 10, lineHeight: 15, marginTop: 8 },
   validationBox: { marginTop: 14, padding: 13, borderRadius: 15, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "rgba(255,166,74,0.08)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,202,106,0.38)" },
   validationText: { flex: 1, color: "#FFD996", fontSize: 11, lineHeight: 16, fontWeight: "800" },

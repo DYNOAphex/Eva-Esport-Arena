@@ -47,8 +47,8 @@ export default function ScrimFormSummary({
 
       <View style={styles.grid}>
         <SummaryItem icon="calendar-outline" label="DATE" value={formattedDate} />
-        <SummaryItem icon="time-outline" label="HORAIRE 1" value={formatTime(matchTime)} />
-        <SummaryItem icon="time-outline" label="HORAIRE 2" value={formatTime(matchTimeAlt)} />
+        <SummaryItem icon="time-outline" label={matchTimeAlt ? "HORAIRE 1" : "HEURE DU MATCH"} value={formatTime(matchTime)} />
+        {matchTimeAlt ? <SummaryItem icon="time-outline" label="HORAIRE 2" value={formatTime(matchTimeAlt)} /> : null}
         {!isReplay ? <SummaryItem icon="business-outline" label="ARÈNE" value={arena} /> : null}
       </View>
     </GlassCard>

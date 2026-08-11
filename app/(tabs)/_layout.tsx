@@ -16,7 +16,7 @@ function CenterAction({ focused }: { focused: boolean }) {
   return (
     <View style={[styles.centerGlow, focused && styles.centerGlowActive]}>
       <View style={styles.centerButton}>
-        <Ionicons name="add" size={26} color="#FFFFFF" />
+        <Ionicons name="add" size={27} color="#111111" />
       </View>
     </View>
   );
@@ -105,7 +105,7 @@ export default function TabsLayout() {
   // Sur Android la barre système est déjà opaque : réinjecter tout l'inset dans
   // la tab bar créait une seconde grosse zone noire au-dessus des boutons système.
   const safeBottom = Platform.OS === "android" ? 6 : Math.max(insets.bottom, 6);
-  const tabBarHeight = 56 + safeBottom;
+  const tabBarHeight = 60 + safeBottom;
 
   return (
     <Tabs
@@ -113,32 +113,32 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Theme.colors.goldLight,
-        tabBarInactiveTintColor: "#C8C8C8",
-        tabBarActiveBackgroundColor: "rgba(246,215,106,0.07)",
+        tabBarInactiveTintColor: "#B9B9B9",
+        tabBarActiveBackgroundColor: "rgba(255,224,120,0.08)",
         tabBarHideOnKeyboard: true,
         tabBarAllowFontScaling: false,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "900", marginTop: -1 },
-        tabBarIconStyle: { marginTop: 0 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: "900", marginTop: 0, letterSpacing: 0.1 },
+        tabBarIconStyle: { marginTop: 1 },
         tabBarStyle: {
           position: "absolute",
           left: 6,
           right: 6,
           bottom: 0,
           height: tabBarHeight,
-          paddingTop: 4,
+          paddingTop: 5,
           paddingBottom: safeBottom,
-          borderRadius: 20,
-          backgroundColor: "rgba(6,6,6,0.985)",
+          borderRadius: 22,
+          backgroundColor: "rgba(5,5,5,0.985)",
           borderTopWidth: 0,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: "rgba(246,215,106,0.24)",
+          borderColor: "rgba(255,224,120,0.22)",
           shadowColor: "#000000",
-          shadowOpacity: 0.3,
-          shadowRadius: 13,
+          shadowOpacity: 0.34,
+          shadowRadius: 15,
           shadowOffset: { width: 0, height: 4 },
-          elevation: 14,
+          elevation: 16,
         },
-        tabBarItemStyle: { borderRadius: 15, minHeight: 46, marginHorizontal: 1 },
+        tabBarItemStyle: { borderRadius: 16, minHeight: 48, marginHorizontal: 1 },
       }}
     >
       <Tabs.Screen name="home" options={{ title: "Accueil", tabBarIcon: ({ color, size, focused }) => <NavIcon focused={focused} color={color} size={size} active="home" inactive="home-outline" /> }} />
@@ -153,9 +153,9 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
-  iconSlot: { width: 32, height: 28, borderRadius: 11, alignItems: "center", justifyContent: "center" },
-  iconSlotActive: { backgroundColor: "rgba(246,215,106,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(246,215,106,0.18)" },
-  centerGlow: { width: 46, height: 46, borderRadius: 23, marginTop: -10, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(217,175,49,0.1)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(241,205,97,0.38)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.22, shadowRadius: 9, shadowOffset: { width: 0, height: 0 }, elevation: 9 },
-  centerGlowActive: { transform: [{ scale: 1.04 }], backgroundColor: "rgba(217,175,49,0.17)", borderColor: "rgba(255,226,128,0.7)" },
-  centerButton: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(10,10,10,0.96)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,122,0.5)" },
+  iconSlot: { width: 34, height: 30, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  iconSlotActive: { backgroundColor: "rgba(255,224,120,0.11)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,120,0.20)" },
+  centerGlow: { width: 50, height: 50, borderRadius: 25, marginTop: -12, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,224,120,0.10)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,224,120,0.42)", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.30, shadowRadius: 11, shadowOffset: { width: 0, height: 0 }, elevation: 11 },
+  centerGlowActive: { transform: [{ scale: 1.04 }], backgroundColor: "rgba(255,224,120,0.18)", borderColor: "rgba(255,232,150,0.78)" },
+  centerButton: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: Theme.colors.goldLight, borderWidth: StyleSheet.hairlineWidth, borderColor: "#FFF0AF", shadowColor: Theme.colors.goldLight, shadowOpacity: 0.26, shadowRadius: 7, shadowOffset: { width: 0, height: 1 }, elevation: 8 },
 });

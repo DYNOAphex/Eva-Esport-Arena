@@ -9,6 +9,7 @@ type ScrimFormSummaryProps = {
   opponent: string;
   date: string;
   matchTime: string;
+  matchTimeAlt?: string;
   arena: string;
   status: string;
   isReplay?: boolean;
@@ -19,6 +20,7 @@ export default function ScrimFormSummary({
   opponent,
   date,
   matchTime,
+  matchTimeAlt,
   arena,
   status,
   isReplay = false,
@@ -45,7 +47,8 @@ export default function ScrimFormSummary({
 
       <View style={styles.grid}>
         <SummaryItem icon="calendar-outline" label="DATE" value={formattedDate} />
-        <SummaryItem icon="time-outline" label="HEURE DU MATCH" value={formatTime(matchTime)} />
+        <SummaryItem icon="time-outline" label="HORAIRE 1" value={formatTime(matchTime)} />
+        <SummaryItem icon="time-outline" label="HORAIRE 2" value={formatTime(matchTimeAlt)} />
         {!isReplay ? <SummaryItem icon="business-outline" label="ARÈNE" value={arena} /> : null}
       </View>
     </GlassCard>
@@ -71,7 +74,7 @@ function formatDate(value: string) {
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
 }
 
-function formatTime(value: string) {
+function formatTime(value?: string) {
   return value ? value.replace(":", "h") : "--h--";
 }
 

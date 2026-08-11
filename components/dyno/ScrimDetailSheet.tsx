@@ -17,6 +17,7 @@ type ScrimDetailSheetProps = {
   dateLabel: string;
   arrivalTime?: string;
   matchTime: string;
+  matchTimeAlt?: string;
   arena: string;
   notes?: string;
   responses: PlayerResponse[];
@@ -30,6 +31,7 @@ export default function ScrimDetailSheet({
   status,
   dateLabel,
   matchTime,
+  matchTimeAlt,
   arena,
   notes,
   responses,
@@ -59,7 +61,7 @@ export default function ScrimDetailSheet({
           </View>
 
           <View style={styles.infoGrid}>
-            <Info icon="time-outline" label="HEURE DU MATCH" value={formatTime(matchTime)} />
+            <Info icon="time-outline" label="HORAIRES POSSIBLES" value={formatTimeOptions(matchTime, matchTimeAlt)} />
             <Info icon="business-outline" label="ARÈNE" value={arena} />
           </View>
 
@@ -121,8 +123,12 @@ function ResponseSection({ title, items, empty }: { title: string; items: Player
   );
 }
 
-function formatTime(value: string) {
+function formatTime(value?: string) {
   return value ? value.replace(":", "h") : "--h--";
+}
+
+function formatTimeOptions(first: string, second?: string) {
+  return second ? `${formatTime(first)} / ${formatTime(second)}` : formatTime(first);
 }
 
 const styles = StyleSheet.create({

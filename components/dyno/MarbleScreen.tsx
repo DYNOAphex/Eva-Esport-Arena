@@ -28,8 +28,8 @@ export default function MarbleScreen({ children, decoration, contentStyle, stron
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Theme.colors.background },
   background: { flex: 1 },
-  backgroundImage: { opacity: Theme.opacity.marble },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: Theme.colors.overlay },
+  backgroundImage: { opacity: Theme.marble.imageOpacity },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: Theme.marble.overlay },
   overlayStrong: { backgroundColor: Theme.colors.overlayStrong },
   whiteGlow: {
     position: "absolute",
@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     width: 330,
     height: 450,
     borderRadius: 190,
-    backgroundColor: "rgba(255,255,255,0.075)",
+    backgroundColor: Theme.marble.whiteGlow,
     transform: [{ rotate: "-17deg" }],
   },
   goldVein: {
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     left: -80,
     width: 520,
     height: 1,
-    backgroundColor: "rgba(246,215,106,0.34)",
+    backgroundColor: Theme.marble.goldVein,
     transform: [{ rotate: "-23deg" }],
   },
   content: { flex: 1 },

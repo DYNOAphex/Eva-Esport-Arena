@@ -108,7 +108,7 @@ export default function PlanningScreen() {
       message: [
         `⚔️ DYNO vs ${match.opponent}`,
         `📅 ${formatDate(match.date)}`,
-        `🕒 Match ${formatTime(match.matchTime)}`,
+        `🕒 Horaires possibles ${formatTimeOptions(match.matchTime, match.matchTimeAlt)}`,
         `📍 ${match.arena}`,
         `✅ ${summary.available} disponible(s) • ❌ ${summary.unavailable} indisponible(s)`,
         summary.pendingPlayers.length ? `⏳ Sans réponse : ${summary.pendingPlayers.map((player) => player.nickname).join(", ")}` : "✅ Tout le monde a répondu",
@@ -118,9 +118,21 @@ export default function PlanningScreen() {
     });
   }
 
-  async function addToCalendar(match: Match) {
+  function addToCalendar(match: Match) {
+    if (!match.matchTimeAlt) {
+      void addToCalendarAtTime(match, match.matchTime);
+      return;
+    }
+    Alert.alert("Ajouter au calendrier", "Quel horaire veux-tu ajouter ?", [
+      { text: formatTime(match.matchTime), onPress: () => void addToCalendarAtTime(match, match.matchTime) },
+      { text: formatTime(match.matchTimeAlt), onPress: () => void addToCalendarAtTime(match, match.matchTimeAlt as string) },
+      { text: "Annuler", style: "cancel" },
+    ]);
+  }
+
+  async function addToCalendarAtTime(match: Match, selectedTime: string) {
     try {
-      const startDate = new Date(`${match.date}T${match.matchTime}:00`);
+      const startDate = new Date(`${match.date}T${selectedTime}:00`);
       if (Number.isNaN(startDate.getTime())) return Alert.alert("Calendrier", "La date ou l'heure du match n'est pas valide.");
       const endDate = new Date(startDate.getTime() + 90 * 60 * 1000);
 
@@ -134,13 +146,13 @@ export default function PlanningScreen() {
           "PRODID:-//DYNO//Esport Manager//FR",
           "CALSCALE:GREGORIAN",
           "BEGIN:VEVENT",
-          `UID:${match.id}@dyno-esport`,
+          `UID:${match.id}-${selectedTime.replace(":", "")}@dyno-esport`,
           `DTSTAMP:${toUtc(new Date())}`,
           `DTSTART:${toUtc(startDate)}`,
           `DTEND:${toUtc(endDate)}`,
           `SUMMARY:${escape(`DYNO vs ${match.opponent}`)}`,
           `LOCATION:${escape(match.arena)}`,
-          `DESCRIPTION:${escape([`Type : ${match.type}`, `Heure du match : ${formatTime(match.matchTime)}`, match.notes ?? ""].filter(Boolean).join("\n"))}`,
+          `DESCRIPTION:${escape([`Type : ${match.type}`, `Horaire choisi : ${formatTime(selectedTime)}`, `Horaires proposés : ${formatTimeOptions(match.matchTime, match.matchTimeAlt)}`, match.notes ?? ""].filter(Boolean).join("\n"))}`,
           "BEGIN:VALARM",
           "TRIGGER:-PT30M",
           "ACTION:DISPLAY",
@@ -169,7 +181,7 @@ export default function PlanningScreen() {
         startDate,
         endDate,
         location: match.arena,
-        notes: [`Type : ${match.type}`, `Heure du match : ${formatTime(match.matchTime)}`, match.notes].filter(Boolean).join("\n"),
+        notes: [`Type : ${match.type}`, `Horaire choisi : ${formatTime(selectedTime)}`, `Horaires proposés : ${formatTimeOptions(match.matchTime, match.matchTimeAlt)}`, match.notes].filter(Boolean).join("\n"),
         alarms: [{ relativeOffset: -30 }],
         timeZone: "Europe/Paris",
       });
@@ -260,6 +272,7 @@ export default function PlanningScreen() {
                 countdown={countdownLabel(timestamp, match.status)}
                 opponent={match.opponent}
                 matchTime={match.matchTime}
+                matchTimeAlt={match.matchTimeAlt}
                 arena={match.arena}
                 available={summary.available}
                 unavailable={summary.unavailable}
@@ -286,7 +299,7 @@ export default function PlanningScreen() {
                 ) : null}
                 <View style={styles.actionRow}>
                   {!isPast && match.status !== "Annulé" ? (
-                    <TouchableOpacity style={styles.calendarButton} onPress={() => void addToCalendar(match)}>
+                    <TouchableOpacity style={styles.calendarButton} onPress={() => addToCalendar(match)}>
                       <Ionicons name="calendar-outline" size={17} color="#080808" />
                       <Text style={styles.calendarButtonText}>CALENDRIER</Text>
                     </TouchableOpacity>
@@ -319,6 +332,7 @@ export default function PlanningScreen() {
         status={details ? (matchTimestamp(details) < Date.now() && details.status !== "Annulé" ? "Terminé" : details.status) : "En attente"}
         dateLabel={details ? formatDate(details.date) : ""}
         matchTime={details?.matchTime ?? "--:--"}
+        matchTimeAlt={details?.matchTimeAlt}
         arena={details?.arena ?? "Aucune"}
         notes={details?.notes}
         responses={detailResponses}
@@ -336,12 +350,16 @@ function AnswerButton({ active, positive, label, disabled, onPress }: { active: 
   return <TouchableOpacity disabled={disabled} style={[styles.answerButton, active && (positive ? styles.answerPositive : styles.answerNegative), disabled && styles.disabled]} onPress={onPress}><Ionicons name={positive ? "checkmark-circle" : "close-circle"} size={20} color={active ? "#080808" : positive ? "#83DD57" : "#FF7777"} /><Text style={[styles.answerText, active && styles.answerTextActive]}>{label}</Text></TouchableOpacity>;
 }
 
-function matchTimestamp(match: Pick<Match, "date" | "matchTime">) { return new Date(`${match.date}T${match.matchTime}:00`).getTime(); }
+function matchTimestamp(match: Pick<Match, "date" | "matchTime" | "matchTimeAlt">) {
+  const time = match.matchTimeAlt && match.matchTimeAlt > match.matchTime ? match.matchTimeAlt : match.matchTime;
+  return new Date(`${match.date}T${time}:00`).getTime();
+}
 function countdownLabel(timestamp: number, status: Match["status"]) { if (status === "Annulé") return "Match annulé"; if (!Number.isFinite(timestamp)) return "Date à confirmer"; const diff = timestamp - Date.now(); if (diff < 0) return "Match terminé"; const hours = Math.ceil(diff / 3600000); if (hours <= 3) return `Dans ${hours} h`; if (hours <= 24) return "Aujourd'hui"; if (hours <= 48) return "Demain"; return `Dans ${Math.ceil(hours / 24)} jours`; }
 function getDay(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? "--" : date.getDate().toString().padStart(2, "0"); }
 function getMonth(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? "---" : date.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "").toUpperCase(); }
 function formatDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }); }
-function formatTime(value: string) { return value ? value.replace(":", "h") : "--h--"; }
+function formatTime(value?: string) { return value ? value.replace(":", "h") : "--h--"; }
+function formatTimeOptions(first: string, second?: string) { return second ? `${formatTime(first)} / ${formatTime(second)}` : formatTime(first); }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#050505" },

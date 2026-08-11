@@ -80,14 +80,14 @@ function shouldNotify(match, field) {
 }
 async function sendExpoPushNotifications(match, tokens) {
   const title = `🟡 Nouveau ${stringOr(match.type, "match").toLowerCase()} DYNO`;
-  const body = `VS ${stringOr(match.opponent, "Adversaire")} • ${shortDate(match.date)} • Match ${formatTime(stringOr(match.matchTime, "?"))} • ${stringOr(match.arena, "")}`;
+  const body = `VS ${stringOr(match.opponent, "Adversaire")} • ${shortDate(match.date)} • Horaires ${formatTimeOptions(match.matchTime, match.matchTimeAlt)} • ${stringOr(match.arena, "")}`;
   const response = await fetch("https://exp.host/--/api/v2/push/send", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(tokens.map((to) => ({ to, title, body, sound: "default", channelId: "matches", priority: "high" }))) });
   if (!response.ok) throw new Error(`Expo push failed (${response.status})`);
 }
 async function sendDiscordNotification(match) {
   const fields = [
     { name: "📅 Date", value: longDate(match.date), inline: false },
-    { name: "🎮 Heure du match", value: formatTime(stringOr(match.matchTime, "À confirmer")), inline: true },
+    { name: "🎮 Horaires possibles", value: formatTimeOptions(match.matchTime, match.matchTimeAlt), inline: true },
     { name: "🏟 Arène", value: stringOr(match.arena, "À confirmer"), inline: true },
   ];
   const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "DYNO Esport Manager", embeds: [{ title: `🏆 Nouveau ${stringOr(match.type, "match").toLowerCase()} DYNO`, description: `**DYNO 🆚 ${stringOr(match.opponent, "Adversaire")}**`, color: 13938487, fields }] }) });
@@ -95,6 +95,7 @@ async function sendDiscordNotification(match) {
 }
 function stringOr(value, fallback) { return typeof value === "string" && value.trim() ? value.trim() : fallback; }
 function formatTime(value) { return typeof value === "string" ? value.replace(":", "h") : value; }
+function formatTimeOptions(first, second) { const firstLabel = formatTime(stringOr(first, "?")); return stringOr(second, "") ? `${firstLabel} / ${formatTime(second)}` : firstLabel; }
 function dateValue(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? Number.MAX_SAFE_INTEGER : date.getTime(); }
 function todayInParis() { return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Paris" }).format(new Date()); }
 function shortDate(value) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", timeZone: "Europe/Paris" }).format(date); }

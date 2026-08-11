@@ -14,6 +14,7 @@ type AgendaMatchCardProps = {
   opponent: string;
   arrivalTime?: string;
   matchTime: string;
+  matchTimeAlt?: string;
   arena: string;
   available: number;
   unavailable: number;
@@ -32,6 +33,7 @@ export default function AgendaMatchCard({
   countdown,
   opponent,
   matchTime,
+  matchTimeAlt,
   arena,
   available,
   unavailable,
@@ -78,7 +80,7 @@ export default function AgendaMatchCard({
       </View>
 
       <View style={styles.infoRow}>
-        <Info icon="time-outline" label="HEURE DU MATCH" value={formatTime(matchTime)} />
+        <Info icon="time-outline" label="HORAIRES POSSIBLES" value={formatTimeOptions(matchTime, matchTimeAlt)} />
         <Info icon="business-outline" label="ARÈNE" value={arena} />
       </View>
 
@@ -114,8 +116,12 @@ function Info({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; la
   );
 }
 
-function formatTime(value: string) {
+function formatTime(value?: string) {
   return value ? value.replace(":", "h") : "--h--";
+}
+
+function formatTimeOptions(first: string, second?: string) {
+  return second ? `${formatTime(first)} / ${formatTime(second)}` : formatTime(first);
 }
 
 const styles = StyleSheet.create({

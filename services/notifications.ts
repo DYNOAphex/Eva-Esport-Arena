@@ -72,10 +72,10 @@ export async function registerForPushNotificationsAsync() {
   }
 }
 
-export async function notifyMatchCreated({ type, opponent, date, matchTime, arena }: { type: string; opponent: string; date: string; matchTime: string; arena: string }) {
+export async function notifyMatchCreated({ type, opponent, date, matchTime, matchTimeAlt, arena }: { type: string; opponent: string; date: string; matchTime: string; matchTimeAlt?: string; arena: string }) {
   if (!(await getAppSettings()).notificationsEnabled) return null;
   const title = `🟡 Nouveau ${type.toLowerCase()} DYNO`;
-  const body = `VS ${opponent} • ${formatDate(date)} • Match ${formatTime(matchTime)} • ${arena}`;
+  const body = `VS ${opponent} • ${formatDate(date)} • Horaires ${formatTimeOptions(matchTime, matchTimeAlt)} • ${arena}`;
   if (Platform.OS === "web") {
     await registerWebPushSubscription().catch(() => null);
     if (!(await requestNotificationPermission())) return null;
@@ -92,8 +92,8 @@ export async function scheduleMatchNotification({ opponent, matchDate }: { oppon
   if (!settings.notificationsEnabled || !(await requestNotificationPermission())) return [];
   const ids: string[] = [];
   for (const reminder of [
-    { enabled: settings.reminder24h, offset: 86400000, title: "⚔️ Match DYNO demain", body: `Le match contre ${opponent} commence dans 24 heures.` },
-    { enabled: settings.reminder1h, offset: 3600000, title: "⚔️ Match DYNO dans 1 heure", body: `Prépare-toi pour le match contre ${opponent}.` },
+    { enabled: settings.reminder24h, offset: 86400000, title: "⚔️ Match DYNO demain", body: `Le match contre ${opponent} est prévu demain.` },
+    { enabled: settings.reminder1h, offset: 3600000, title: "⚔️ Match DYNO bientôt", body: `Premier horaire possible du match contre ${opponent} dans 1 heure.` },
   ]) {
     const date = new Date(matchDate.getTime() - reminder.offset);
     if (!reminder.enabled || date.getTime() <= Date.now()) continue;
@@ -103,4 +103,5 @@ export async function scheduleMatchNotification({ opponent, matchDate }: { oppon
 }
 
 function formatDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }); }
-function formatTime(value: string) { return value ? value.replace(":", "h") : "--h--"; }
+function formatTime(value?: string) { return value ? value.replace(":", "h") : "--h--"; }
+function formatTimeOptions(first: string, second?: string) { return second ? `${formatTime(first)} / ${formatTime(second)}` : formatTime(first); }

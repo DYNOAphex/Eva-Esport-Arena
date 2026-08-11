@@ -13,6 +13,7 @@ type MatchDocument = {
   date?: string;
   arrivalTime?: string;
   matchTime?: string;
+  matchTimeAlt?: string;
   arena?: string;
   notes?: string;
   discordNotifiedAt?: string;
@@ -29,17 +30,14 @@ export const notifyNewMatch = onDocumentCreated(
 
     const currentDocument = await event.data.ref.get();
     const currentData = currentDocument.data() as MatchDocument | undefined;
-
-    // Firestore events can be retried. This prevents sending the same announcement twice
-    // after a successful Discord request.
     if (!currentData || currentData.discordNotifiedAt) return;
 
     const match = {
       type: currentData.type || "Match",
       opponent: currentData.opponent || "Adversaire",
       date: currentData.date || "Date à confirmer",
-      arrivalTime: currentData.arrivalTime || "À confirmer",
       matchTime: currentData.matchTime || "À confirmer",
+      matchTimeAlt: currentData.matchTimeAlt || "",
       arena: currentData.arena || "Arène à confirmer",
       notes: currentData.notes || "",
     };
@@ -61,15 +59,14 @@ async function sendDiscordNotification(match: {
   type: string;
   opponent: string;
   date: string;
-  arrivalTime: string;
   matchTime: string;
+  matchTimeAlt: string;
   arena: string;
   notes: string;
 }) {
   const fields = [
     { name: "📅 Date", value: formatFrenchDate(match.date), inline: false },
-    { name: "⏰ Rendez-vous", value: match.arrivalTime, inline: true },
-    { name: "🎮 Match", value: match.matchTime, inline: true },
+    { name: "🎮 Horaires possibles", value: formatTimeOptions(match.matchTime, match.matchTimeAlt), inline: true },
     { name: "🏟 Arène", value: match.arena, inline: true },
   ];
 
@@ -102,6 +99,14 @@ async function sendDiscordNotification(match: {
     const responseBody = await response.text();
     throw new Error(`Discord webhook failed (${response.status}): ${responseBody.slice(0, 200)}`);
   }
+}
+
+function formatTime(value: string) {
+  return value ? value.replace(":", "h") : value;
+}
+
+function formatTimeOptions(first: string, second?: string) {
+  return second ? `${formatTime(first)} / ${formatTime(second)}` : formatTime(first);
 }
 
 function formatFrenchDate(value: string) {

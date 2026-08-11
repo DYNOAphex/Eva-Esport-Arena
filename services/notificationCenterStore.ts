@@ -21,8 +21,9 @@ async function saveReadIds(ids: Set<string>) {
   await AsyncStorage.setItem(READ_IDS_KEY, JSON.stringify([...ids].slice(-250)));
 }
 
-function matchTimestamp(match: Pick<Match, "date" | "matchTime">) {
-  const timestamp = new Date(`${match.date}T${match.matchTime}:00`).getTime();
+function matchTimestamp(match: Pick<Match, "date" | "matchTime" | "matchTimeAlt">) {
+  const time = match.matchTimeAlt && match.matchTimeAlt > match.matchTime ? match.matchTimeAlt : match.matchTime;
+  const timestamp = new Date(`${match.date}T${time}:00`).getTime();
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
@@ -30,6 +31,14 @@ function formatDate(dateValue: string, timeValue?: string) {
   const date = new Date(`${dateValue}T${timeValue || "12:00"}:00`);
   if (Number.isNaN(date.getTime())) return dateValue;
   return date.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "short" });
+}
+
+function formatTime(value?: string) {
+  return value ? value.replace(":", "h") : "--h--";
+}
+
+function formatTimeOptions(first: string, second?: string) {
+  return second ? `${formatTime(first)} / ${formatTime(second)}` : formatTime(first);
 }
 
 function buildMatchNotifications(matches: Match[]): DynoNotificationItem[] {
@@ -52,7 +61,7 @@ function buildMatchNotifications(matches: Match[]): DynoNotificationItem[] {
       id: `match-${match.id}-${match.status}-${match.responses.length}`,
       title: future ? `${match.type} contre ${match.opponent}` : `${match.type} terminé`,
       message: future
-        ? `${formatDate(match.date, match.matchTime)} à ${match.matchTime.replace(":", "h")} · ${available} disponible${available > 1 ? "s" : ""}${pending ? ` · ${pending} en attente` : ""}`
+        ? `${formatDate(match.date, match.matchTime)} · ${formatTimeOptions(match.matchTime, match.matchTimeAlt)} · ${available} disponible${available > 1 ? "s" : ""}${pending ? ` · ${pending} en attente` : ""}`
         : `Retrouve le récapitulatif du rendez-vous contre ${match.opponent}.`,
       timeLabel: future ? "À venir" : "Historique",
       category: "scrim" as const,

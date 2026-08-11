@@ -221,10 +221,11 @@ function validateMatch(value) {
   const date = clean(value.date, 10);
   const arrivalTime = clean(value.arrivalTime, 5);
   const matchTime = clean(value.matchTime, 5);
+  const matchTimeAlt = clean(value.matchTimeAlt, 5);
   const arena = clean(value.arena, 40);
   const notes = clean(value.notes || "", 500);
   if (!opponent || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Missing match information");
-  return { opponent, type, date, arrivalTime, matchTime, arena, notes };
+  return { opponent, type, date, arrivalTime, matchTime, matchTimeAlt, arena, notes };
 }
 
 function clean(value, maxLength) {
@@ -235,7 +236,7 @@ async function sendDiscord(webhookUrl, match, creatorEmail) {
   if (!webhookUrl) throw new Error("DISCORD_WEBHOOK_URL is not configured");
   const fields = [
     { name: "📅 Date", value: formatFrenchDate(match.date), inline: false },
-    { name: "🎮 Heure du match", value: formatTime(match.matchTime || "À confirmer"), inline: true },
+    { name: "🎮 Horaires possibles", value: formatTimeOptions(match.matchTime, match.matchTimeAlt), inline: true },
     { name: "🏟 Arène", value: match.arena || "À confirmer", inline: true },
   ];
   if (match.notes) fields.push({ name: "📝 Notes", value: match.notes, inline: false });
@@ -265,6 +266,11 @@ async function sendDiscord(webhookUrl, match, creatorEmail) {
 
 function formatTime(value) {
   return typeof value === "string" ? value.replace(":", "h") : value;
+}
+
+function formatTimeOptions(first, second) {
+  const firstLabel = formatTime(first || "À confirmer");
+  return second ? `${firstLabel} / ${formatTime(second)}` : firstLabel;
 }
 
 function formatFrenchDate(value) {

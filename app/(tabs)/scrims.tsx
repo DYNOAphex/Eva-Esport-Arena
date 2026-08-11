@@ -15,9 +15,6 @@ const marbleSource = require("../../assets/images/background-marble.jpg");
 const arenas: MatchArena[] = ["Arène 1", "Arène 2"];
 const statuses: MatchStatus[] = ["En attente", "Confirmé", "Annulé"];
 const appointmentTypes: MatchType[] = ["Scrim", "Replay / Strat"];
-const matchTimes = ["21:20", "22:00"] as const;
-
-type MatchTimeOption = (typeof matchTimes)[number];
 
 export default function ScrimsScreen() {
   const params = useLocalSearchParams<{ editId?: string }>();
@@ -27,7 +24,8 @@ export default function ScrimsScreen() {
   const [type, setType] = useState<MatchType>("Scrim");
   const [opponent, setOpponent] = useState("");
   const [date, setDate] = useState("");
-  const [matchTime, setMatchTime] = useState<MatchTimeOption>("21:20");
+  const [matchTime, setMatchTime] = useState("21:20");
+  const [matchTimeAlt, setMatchTimeAlt] = useState("22:00");
   const [arena, setArena] = useState<MatchArena>("Arène 1");
   const [status, setStatus] = useState<MatchStatus>("En attente");
   const [notes, setNotes] = useState("");
@@ -58,7 +56,8 @@ export default function ScrimsScreen() {
           setType(match.type);
           setOpponent(match.opponent);
           setDate(match.date);
-          setMatchTime(normalizeMatchTime(match.matchTime));
+          setMatchTime(normalizeTime(match.matchTime, "21:20"));
+          setMatchTimeAlt(normalizeTime(match.matchTimeAlt, suggestSecondTime(match.matchTime)));
           setArena(match.arena);
           setStatus(match.status);
           setNotes(match.notes ?? "");
@@ -71,8 +70,8 @@ export default function ScrimsScreen() {
 
   const formReady = useMemo(() => {
     const hasTitle = Boolean(opponent.trim() || isReplay);
-    return hasTitle && /^\d{4}-\d{2}-\d{2}$/.test(date);
-  }, [date, isReplay, opponent]);
+    return hasTitle && /^\d{4}-\d{2}-\d{2}$/.test(date) && matchTime !== matchTimeAlt;
+  }, [date, isReplay, matchTime, matchTimeAlt, opponent]);
 
   function chooseType(value: MatchType) {
     setType(value);
@@ -84,11 +83,6 @@ export default function ScrimsScreen() {
       if (opponent === "Replay / Strat") setOpponent("");
       if (arena === "Aucune") setArena("Arène 1");
     }
-  }
-
-  function chooseMatchTime(value: MatchTimeOption) {
-    setMatchTime(value);
-    setValidationMessage("");
   }
 
   async function handleSave() {
@@ -105,20 +99,24 @@ export default function ScrimsScreen() {
       Alert.alert("Date manquante", "Sélectionne une date avant de programmer le rendez-vous.");
       return;
     }
+    if (matchTime === matchTimeAlt) {
+      setValidationMessage("Choisis deux horaires différents.");
+      Alert.alert("Horaires identiques", "Les deux possibilités doivent avoir des horaires différents.");
+      return;
+    }
 
     try {
       if (!editId && Platform.OS === "web") await requestNotificationPermission().catch(() => false);
       setSaving(true);
       setValidationMessage("");
 
-      // arrivalTime reste écrit pour la compatibilité avec les anciens documents,
-      // mais DYNO ne présente plus qu'une seule heure : celle du match.
       const input = {
         type,
         opponent: title,
         date,
         arrivalTime: matchTime,
         matchTime,
+        matchTimeAlt,
         arena: isReplay ? "Aucune" as const : arena,
         status,
         notes: notes.trim(),
@@ -131,19 +129,20 @@ export default function ScrimsScreen() {
           opponent: match.opponent,
           date: match.date,
           matchTime: match.matchTime,
+          matchTimeAlt: match.matchTimeAlt,
           arena: match.arena,
         }).catch(() => null);
 
-        const start = new Date(`${match.date}T${match.matchTime}:00`);
-        if (!Number.isNaN(start.getTime())) {
-          await scheduleMatchNotification({ opponent: match.opponent, matchDate: start }).catch(() => null);
+        const firstStart = new Date(`${match.date}T${earliestTime(match.matchTime, match.matchTimeAlt)}:00`);
+        if (!Number.isNaN(firstStart.getTime())) {
+          await scheduleMatchNotification({ opponent: match.opponent, matchDate: firstStart }).catch(() => null);
         }
       }
 
       const successTitle = isReplay
         ? (editId ? "Rendez-vous modifié" : "Rendez-vous programmé")
         : (editId ? "Scrim modifié" : "Scrim programmé");
-      Alert.alert(successTitle, `${match.opponent} est enregistré à ${formatTime(match.matchTime)}.`, [
+      Alert.alert(successTitle, `${match.opponent} est enregistré avec les créneaux ${formatTime(match.matchTime)} et ${formatTime(match.matchTimeAlt)}.`, [
         { text: "Voir l'Agenda", onPress: () => router.replace("/(tabs)/planning") },
       ]);
     } catch (error) {
@@ -191,19 +190,12 @@ export default function ScrimsScreen() {
             <Label text="Date" />
             <DateField value={date} onChange={(value) => { setDate(value); setValidationMessage(""); }} />
 
-            <Label text="Heure du match" />
+            <Label text="Horaires possibles" />
             <View style={styles.timeChoiceRow}>
-              {matchTimes.map((value) => {
-                const active = matchTime === value;
-                return (
-                  <TouchableOpacity key={value} style={[styles.timeChoice, active && styles.timeChoiceActive]} onPress={() => chooseMatchTime(value)} activeOpacity={0.82}>
-                    <Ionicons name="time-outline" size={20} color={active ? "#080808" : Theme.colors.goldLight} />
-                    <Text style={[styles.timeChoiceText, active && styles.timeChoiceTextActive]}>{formatTime(value)}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <TimeField label="HORAIRE 1" value={matchTime} onChange={(value) => { setMatchTime(value); setValidationMessage(""); }} />
+              <TimeField label="HORAIRE 2" value={matchTimeAlt} onChange={(value) => { setMatchTimeAlt(value); setValidationMessage(""); }} />
             </View>
-            <Text style={styles.timeHint}>Deux créneaux DYNO disponibles : 21h20 ou 22h00.</Text>
+            <Text style={styles.timeHint}>Appuie sur chaque horaire pour le modifier librement.</Text>
 
             {!isReplay ? (
               <>
@@ -251,6 +243,7 @@ export default function ScrimsScreen() {
             opponent={opponent}
             date={date}
             matchTime={matchTime}
+            matchTimeAlt={matchTimeAlt}
             arena={isReplay ? "Aucune" : arena}
             status={status}
             isReplay={isReplay}
@@ -311,14 +304,62 @@ function DateField({ value, onChange }: { value: string; onChange: (value: strin
   );
 }
 
-function normalizeMatchTime(value: string): MatchTimeOption {
-  if (value === "22:00") return "22:00";
-  if (value === "21:20") return "21:20";
-  return value >= "21:40" ? "22:00" : "21:20";
+function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const [visible, setVisible] = useState(false);
+
+  if (Platform.OS === "web") {
+    return (
+      <View style={styles.timeFieldWrap}>
+        <Text style={styles.timeSlotLabel}>{label}</Text>
+        {createElement("input", {
+          type: "time",
+          value,
+          step: 300,
+          onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+          style: webTimeInputStyle,
+          "aria-label": label,
+        }) as never}
+      </View>
+    );
+  }
+
+  const [hours, minutes] = value.split(":").map(Number);
+  const pickerValue = new Date();
+  pickerValue.setHours(hours || 0, minutes || 0, 0, 0);
+
+  function handleChange(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === "android") setVisible(false);
+    if (event.type === "dismissed" || !selected) return;
+    onChange(`${String(selected.getHours()).padStart(2, "0")}:${String(selected.getMinutes()).padStart(2, "0")}`);
+  }
+
+  return (
+    <View style={styles.timeFieldWrap}>
+      <Text style={styles.timeSlotLabel}>{label}</Text>
+      <TouchableOpacity style={styles.timeChoice} onPress={() => setVisible(true)} activeOpacity={0.82}>
+        <Ionicons name="time-outline" size={21} color={Theme.colors.goldLight} />
+        <Text style={styles.timeChoiceText}>{formatTime(value)}</Text>
+        <Ionicons name="create-outline" size={17} color="#9A9A9A" />
+      </TouchableOpacity>
+      {visible ? <DateTimePicker value={pickerValue} mode="time" is24Hour minuteInterval={5} display={Platform.OS === "android" ? "clock" : "spinner"} onChange={handleChange} /> : null}
+    </View>
+  );
 }
 
-function formatTime(value: string) {
-  return value.replace(":", "h");
+function normalizeTime(value: string | undefined, fallback: string) {
+  return value && /^\d{2}:\d{2}$/.test(value) ? value : fallback;
+}
+
+function suggestSecondTime(first: string) {
+  return first === "22:00" ? "21:20" : "22:00";
+}
+
+function earliestTime(first: string, second?: string) {
+  return second && second < first ? second : first;
+}
+
+function formatTime(value?: string) {
+  return value ? value.replace(":", "h") : "--h--";
 }
 
 function todayDate() {
@@ -347,6 +388,12 @@ const webInputStyle = {
   outline: "none",
 } as const;
 
+const webTimeInputStyle = {
+  ...webInputStyle,
+  minHeight: 58,
+  fontSize: 18,
+} as const;
+
 const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" },
   loadingText: { color: "#D8D8D8" },
@@ -372,11 +419,11 @@ const styles = StyleSheet.create({
   chipText: { color: "#ddd", fontWeight: "800", fontSize: 11, textAlign: "center" },
   chipTextActive: { color: "#080808" },
   timeChoiceRow: { flexDirection: "row", gap: 10 },
-  timeChoice: { flex: 1, minHeight: 62, borderRadius: 17, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.045)", borderWidth: 1, borderColor: "rgba(246,215,106,0.28)" },
-  timeChoiceActive: { backgroundColor: Theme.colors.goldLight, borderColor: Theme.colors.goldLight },
-  timeChoiceText: { color: "#FFFFFF", fontSize: 18, fontWeight: "900" },
-  timeChoiceTextActive: { color: "#080808" },
-  timeHint: { color: "#AFAFAF", fontSize: 10, lineHeight: 15, marginTop: 7 },
+  timeFieldWrap: { flex: 1, minWidth: 0 },
+  timeSlotLabel: { color: "#AFAFAF", fontSize: 8, fontWeight: "900", letterSpacing: 0.9, marginBottom: 6 },
+  timeChoice: { minHeight: 62, borderRadius: 17, flexDirection: "row", gap: 7, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.045)", borderWidth: 1, borderColor: "rgba(246,215,106,0.28)", paddingHorizontal: 9 },
+  timeChoiceText: { flex: 1, color: "#FFFFFF", fontSize: 18, fontWeight: "900", textAlign: "center" },
+  timeHint: { color: "#AFAFAF", fontSize: 10, lineHeight: 15, marginTop: 8 },
   validationBox: { marginTop: 14, padding: 13, borderRadius: 15, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "rgba(255,166,74,0.08)", borderWidth: StyleSheet.hairlineWidth, borderColor: "rgba(255,202,106,0.38)" },
   validationText: { flex: 1, color: "#FFD996", fontSize: 11, lineHeight: 16, fontWeight: "800" },
   previewLabel: { color: Theme.colors.goldLight, fontSize: 10, fontWeight: "900", letterSpacing: 1.2, marginTop: 22, marginBottom: 9 },

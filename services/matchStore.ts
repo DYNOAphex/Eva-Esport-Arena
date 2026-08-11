@@ -12,7 +12,7 @@ export type Availability = "Disponible" | "Indisponible" | "En attente";
 
 export type PlayerResponse = { uid?: string; player: string; status: Availability };
 export type Match = {
-  id: string; type: MatchType; opponent: string; date: string; arrivalTime: string; matchTime: string; arena: MatchArena; status: MatchStatus;
+  id: string; type: MatchType; opponent: string; date: string; arrivalTime: string; matchTime: string; matchTimeAlt?: string; arena: MatchArena; status: MatchStatus;
   notes?: string; responses: PlayerResponse[]; createdAt: string; createdBy?: string;
   discordNotificationPending?: boolean; discordNotifiedAt?: string; pushNotifiedAt?: string;
 };
@@ -41,7 +41,7 @@ function stringValue(value: unknown): FirestoreValue { return { stringValue: Str
 function responseToFirestore(response: PlayerResponse): FirestoreValue { return { mapValue: { fields: { uid: stringValue(response.uid ?? ""), player: stringValue(response.player), status: stringValue(response.status) } } }; }
 function matchToFields(match: Match): Record<string, FirestoreValue> {
   return {
-    type: stringValue(match.type), opponent: stringValue(match.opponent), date: stringValue(match.date), arrivalTime: stringValue(match.arrivalTime), matchTime: stringValue(match.matchTime), arena: stringValue(match.arena), status: stringValue(match.status), notes: stringValue(match.notes ?? ""), createdAt: stringValue(match.createdAt), createdBy: stringValue(match.createdBy ?? ""),
+    type: stringValue(match.type), opponent: stringValue(match.opponent), date: stringValue(match.date), arrivalTime: stringValue(match.arrivalTime), matchTime: stringValue(match.matchTime), matchTimeAlt: stringValue(match.matchTimeAlt ?? ""), arena: stringValue(match.arena), status: stringValue(match.status), notes: stringValue(match.notes ?? ""), createdAt: stringValue(match.createdAt), createdBy: stringValue(match.createdBy ?? ""),
     discordNotificationPending: { booleanValue: match.discordNotificationPending === true }, discordNotifiedAt: stringValue(match.discordNotifiedAt ?? ""), pushNotifiedAt: stringValue(match.pushNotifiedAt ?? ""),
     responses: { arrayValue: { values: match.responses.map(responseToFirestore) } },
   };
@@ -55,7 +55,7 @@ function documentToMatch(document: FirestoreDocument): Match {
   const rawType = readString(fields.type); const rawArena = readString(fields.arena); const status = readString(fields.status);
   const type: MatchType = rawType === "Division" ? "Division" : rawType === "Replay / Strat" ? "Replay / Strat" : "Scrim";
   const arena: MatchArena = rawArena === "Arène 2" ? "Arène 2" : rawArena === "Aucune" ? "Aucune" : "Arène 1";
-  return { id: document.name.split("/").pop() ?? `${Date.now()}`, type, opponent: readString(fields.opponent) || (type === "Replay / Strat" ? "Replay / Strat" : "Adversaire"), date: readString(fields.date), arrivalTime: readString(fields.arrivalTime) || "19:30", matchTime: readString(fields.matchTime) || "20:00", arena, status: status === "Confirmé" || status === "Annulé" ? status : "En attente", notes: readString(fields.notes), createdAt: readString(fields.createdAt) || new Date().toISOString(), createdBy: readString(fields.createdBy) || undefined, discordNotificationPending: readBoolean(fields.discordNotificationPending), discordNotifiedAt: readString(fields.discordNotifiedAt) || undefined, pushNotifiedAt: readString(fields.pushNotifiedAt) || undefined, responses };
+  return { id: document.name.split("/").pop() ?? `${Date.now()}`, type, opponent: readString(fields.opponent) || (type === "Replay / Strat" ? "Replay / Strat" : "Adversaire"), date: readString(fields.date), arrivalTime: readString(fields.arrivalTime) || "19:30", matchTime: readString(fields.matchTime) || "20:00", matchTimeAlt: readString(fields.matchTimeAlt) || undefined, arena, status: status === "Confirmé" || status === "Annulé" ? status : "En attente", notes: readString(fields.notes), createdAt: readString(fields.createdAt) || new Date().toISOString(), createdBy: readString(fields.createdBy) || undefined, discordNotificationPending: readBoolean(fields.discordNotificationPending), discordNotifiedAt: readString(fields.discordNotifiedAt) || undefined, pushNotifiedAt: readString(fields.pushNotifiedAt) || undefined, responses };
 }
 async function firestoreRequest(url: string, init: RequestInit = {}) { const session = await requireUser(); return fetch(url, { ...init, headers: { Authorization: `Bearer ${session.idToken}`, "Content-Type": "application/json", ...(init.headers ?? {}) } }); }
 async function fetchCloudMatches() { const response = await firestoreRequest(`${FIRESTORE_BASE}?pageSize=100`); if (!response.ok) throw new Error("Synchronisation Firebase impossible."); const data = (await response.json()) as { documents?: FirestoreDocument[] }; return sortMatches((data.documents ?? []).map(documentToMatch)); }
@@ -74,7 +74,7 @@ async function notifyDiscordImmediately(match: Match, idToken: string) {
   const response = await fetch(DISCORD_WORKER_URL, {
     method: "POST",
     headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ type: match.type, opponent: match.opponent, date: match.date, arrivalTime: match.arrivalTime, matchTime: match.matchTime, arena: match.arena, notes: match.notes ?? "" }),
+    body: JSON.stringify({ type: match.type, opponent: match.opponent, date: match.date, arrivalTime: match.arrivalTime, matchTime: match.matchTime, matchTimeAlt: match.matchTimeAlt ?? "", arena: match.arena, notes: match.notes ?? "" }),
   });
   if (!response.ok) throw new Error(`Notification Discord immédiate impossible (${response.status}).`);
 }
@@ -106,7 +106,7 @@ export async function createMatch(input: MatchInput) {
   return match;
 }
 export async function updateMatch(matchId: string, patch: Partial<MatchInput>) { await requireManagePermission(); await requireUser(); const matches = await fetchCloudMatches().catch(readStoredMatches); const current = matches.find((match) => match.id === matchId); if (!current) throw new Error("Ce rendez-vous n'existe plus."); const changed: Match = { ...current, ...patch, id: current.id, responses: current.responses, createdAt: current.createdAt, createdBy: current.createdBy, discordNotificationPending: current.discordNotificationPending, discordNotifiedAt: current.discordNotifiedAt, pushNotifiedAt: current.pushNotifiedAt }; await uploadMatch(changed); await persist(matches.map((match) => match.id === matchId ? changed : match)); return changed; }
-export async function duplicateMatch(matchId: string) { await requireCreatePermission(); const original = await getMatch(matchId); if (!original) throw new Error("Ce rendez-vous n'existe plus."); return createMatch({ type: original.type, opponent: original.opponent, date: original.date, arrivalTime: original.arrivalTime, matchTime: original.matchTime, arena: original.arena, status: "En attente", notes: original.notes }); }
+export async function duplicateMatch(matchId: string) { await requireCreatePermission(); const original = await getMatch(matchId); if (!original) throw new Error("Ce rendez-vous n'existe plus."); return createMatch({ type: original.type, opponent: original.opponent, date: original.date, arrivalTime: original.arrivalTime, matchTime: original.matchTime, matchTimeAlt: original.matchTimeAlt, arena: original.arena, status: "En attente", notes: original.notes }); }
 export async function setMatchAvailability(matchId: string, availability: Exclude<Availability, "En attente">) {
   const user = await requireUser();
   const linkedPlayer = await getRosterPlayerForAccount(user.localId, user.email).catch(() => null);
